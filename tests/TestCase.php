@@ -17,6 +17,23 @@ abstract class TestCase extends BaseTestCase
      */
     protected ?Tenant $tenant = null;
 
+    /**
+     * Refuse to run against anything but the test database: RefreshDatabase
+     * drops every table, so a cached config or stray env var must never let
+     * the suite reach the real database.
+     */
+    public function createApplication()
+    {
+        $app = parent::createApplication();
+
+        $database = $app['config']->get('database.connections.'.$app['config']->get('database.default').'.database');
+        if ($database !== 'zyncwork_saas_db_test') {
+            throw new \RuntimeException("Refusing to run tests against database [{$database}]; expected [zyncwork_saas_db_test].");
+        }
+
+        return $app;
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
