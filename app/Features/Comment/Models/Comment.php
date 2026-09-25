@@ -6,9 +6,12 @@ use App\Features\TaskAdmin\Models\Task;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Core\Tenancy\BelongsToTenant;
 
 class Comment extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'task_id',
         'user_id',

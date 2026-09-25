@@ -5,9 +5,12 @@ namespace App\Features\ActivityLog\Models;
 use App\Features\Auth\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Core\Tenancy\BelongsToTenant;
 
 class ActivityLog extends Model
 {
+    use BelongsToTenant;
+
     use HasFactory;
 
     protected $fillable = [

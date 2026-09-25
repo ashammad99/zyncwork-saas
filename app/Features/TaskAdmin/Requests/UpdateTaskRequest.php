@@ -5,6 +5,7 @@ namespace App\Features\TaskAdmin\Requests;
 use App\Features\TaskAdmin\Models\Task;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Core\Tenancy\TenantRule;
 
 class UpdateTaskRequest extends FormRequest
 {
@@ -16,9 +17,9 @@ class UpdateTaskRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'project_id'          => ['sometimes', 'integer', 'exists:projects,id'],
-            'assignee_id'         => ['nullable', 'integer', 'exists:users,id'],
-            'depends_on_task_id'  => ['nullable', 'integer', 'exists:tasks,id',
+            'project_id'          => ['sometimes', 'integer', TenantRule::exists('projects')],
+            'assignee_id'         => ['nullable', 'integer', TenantRule::exists('users')],
+            'depends_on_task_id'  => ['nullable', 'integer', TenantRule::exists('tasks'),
                 Rule::notIn([$this->route('task')->id]), // cannot depend on itself
             ],
             'title'               => ['sometimes', 'required', 'string', 'max:255'],

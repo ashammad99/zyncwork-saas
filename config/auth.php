@@ -62,7 +62,9 @@ return [
 
     'providers' => [
         'users' => [
-            'driver' => 'eloquent',
+            // Eloquent provider that looks users up before a tenant is known
+            // (App\Core\Tenancy\TenantAwareUserProvider).
+            'driver' => 'tenant-eloquent',
             'model' => env('AUTH_MODEL', App\Features\Auth\Models\User::class),
         ],
 

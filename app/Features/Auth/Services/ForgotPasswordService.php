@@ -3,6 +3,7 @@
 namespace App\Features\Auth\Services;
 
 use App\Core\BaseService;
+use App\Core\Tenancy\TenantContext;
 use App\Features\ActivityLog\Events\ActivityLogged;
 use App\Features\Auth\Models\User;
 use App\Mail\GeneralMail;
@@ -22,7 +23,8 @@ class ForgotPasswordService extends BaseService
      */
     public function sendResetLink(string $email): string
     {
-        $user = User::where('email', $email)->first();
+        // Guest request: no tenant yet. Emails are unique platform-wide.
+        $user = User::withoutTenancy()->where('email', $email)->first();
 
         if (!$user) {
             return Password::INVALID_USER;
@@ -73,7 +75,10 @@ class ForgotPasswordService extends BaseService
 
                 $user->setRememberToken(Str::random(60));
 
-                event(new ActivityLogged($user, 'password_reset', 'User password reset successfully.', 'security'));
+                // Guest request: log against the user's own tenant.
+                app(TenantContext::class)->run($user->tenant_id, fn () =>
+                    event(new ActivityLogged($user, 'password_reset', 'User password reset successfully.', 'security'))
+                );
             }
         );
     }

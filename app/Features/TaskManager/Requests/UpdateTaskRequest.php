@@ -3,6 +3,7 @@
 namespace App\Features\TaskManager\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Tenancy\TenantRule;
 
 class UpdateTaskRequest extends FormRequest
 {
@@ -16,9 +17,9 @@ class UpdateTaskRequest extends FormRequest
         $taskId = $this->route('task')?->id;
 
         return [
-            'project_id' => ['sometimes', 'integer', 'exists:projects,id'],
-            'assignee_id' => ['nullable', 'integer', 'exists:users,id'],
-            'depends_on_task_id' => ['nullable', 'integer', 'exists:tasks,id', "not_in:{$taskId}"],
+            'project_id' => ['sometimes', 'integer', TenantRule::exists('projects')],
+            'assignee_id' => ['nullable', 'integer', TenantRule::exists('users')],
+            'depends_on_task_id' => ['nullable', 'integer', TenantRule::exists('tasks'), "not_in:{$taskId}"],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'priority' => ['required', 'in:low,medium,high,urgent'],

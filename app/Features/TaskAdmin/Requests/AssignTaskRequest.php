@@ -3,6 +3,7 @@
 namespace App\Features\TaskAdmin\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Tenancy\TenantRule;
 
 class AssignTaskRequest extends FormRequest
 {
@@ -14,7 +15,7 @@ class AssignTaskRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'assignee_id' => ['nullable', 'integer', 'exists:users,id'],
+            'assignee_id' => ['nullable', 'integer', TenantRule::exists('users')],
         ];
     }
 }

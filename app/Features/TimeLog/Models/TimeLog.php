@@ -7,9 +7,12 @@ use App\Features\TaskAdmin\Models\Task;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Builder;
+use App\Core\Tenancy\BelongsToTenant;
 
 class TimeLog extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'task_id',
         'user_id',

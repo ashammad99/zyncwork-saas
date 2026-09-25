@@ -3,6 +3,7 @@
 namespace App\Features\Comment\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Tenancy\TenantRule;
 
 class StoreCommentRequest extends FormRequest
 {
@@ -15,7 +16,7 @@ class StoreCommentRequest extends FormRequest
     {
         return [
             'body'      => ['required', 'string', 'min:1', 'max:5000'],
-            'parent_id' => ['nullable', 'integer', 'exists:comments,id'],
+            'parent_id' => ['nullable', 'integer', TenantRule::exists('comments')],
         ];
     }
 

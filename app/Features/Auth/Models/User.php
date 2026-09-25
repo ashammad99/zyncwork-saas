@@ -10,9 +10,12 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use App\Features\TimeLog\Models\TimeLog;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Core\Tenancy\BelongsToTenant;
 
 class User extends Authenticatable
 {
+    use BelongsToTenant;
+
     use HasFactory, Notifiable;
 
     protected $fillable = [
@@ -62,7 +65,9 @@ class User extends Authenticatable
     public function collaboratedProjects()
     {
         return $this->belongsToMany(Project::class, 'project_members')
-            ->withPivot(['role', 'joined_at']);
+            ->withPivot(['role', 'joined_at'])
+            // Pivot rows carry the tenant; a composite foreign key rejects cross-tenant links.
+            ->withPivotValue('tenant_id', $this->tenant_id);
     }
     public function department(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
