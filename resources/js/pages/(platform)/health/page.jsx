@@ -1,11 +1,11 @@
 import React from "react";
-import AdminLayout from "@/pages/(portals)/admin/layout";
+import PlatformLayout from "../layout";
 import { Head } from "@inertiajs/react";
 import { Activity, Server, Database, Zap, Cpu, Globe, Key, Clock, Settings, HardDrive } from "lucide-react";
 
 export default function SystemHealthPage({ metrics }) {
     return (
-        <AdminLayout>
+        <PlatformLayout>
             <Head title="System Health" />
             <div className="max-w-7xl mx-auto space-y-6 md:pb-12">
                 <div>
@@ -170,6 +170,6 @@ export default function SystemHealthPage({ metrics }) {
 
                 </div>
             </div>
-        </AdminLayout>
+        </PlatformLayout>
     );
 }

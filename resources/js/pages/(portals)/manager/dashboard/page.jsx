@@ -158,7 +158,7 @@ export default function ManagerDashboard({
                                 {recent_activity.map((log) => (
                                     <li key={log.id} className="px-6 py-3 flex items-start gap-3">
                                         <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-600 shrink-0 overflow-hidden">
-                                            {log.user?.profile_image ? (
+                                            {!log.platform_actor && log.user?.profile_image ? (
                                                 <img
                                                     src={`/user/profile-image/${log.user.profile_image}`}
 
@@ -166,12 +166,12 @@ export default function ManagerDashboard({
                                                     alt=""
                                                 />
                                             ) : (
-                                                log.user?.name?.charAt(0) ?? "S"
+                                                (log.platform_actor ?? log.user?.name)?.charAt(0) ?? "S"
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm text-gray-900">
-                                                <span className="font-medium">{log.user?.name ?? "System"}</span>{" "}
+                                                <span className="font-medium">{log.platform_actor ?? log.user?.name ?? "System"}</span>{" "}
                                                 <span className="text-gray-500">{log.description ?? log.action}</span>
                                             </p>
                                             <p className="text-xs text-gray-400 mt-0.5">

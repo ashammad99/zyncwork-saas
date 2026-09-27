@@ -1,5 +1,5 @@
 import React from "react";
-import AdminLayout from "@/pages/(portals)/admin/layout";
+import PlatformLayout from "../layout";
 import { Head, router } from "@inertiajs/react";
 import { useModal } from "@/Contexts/ModalContext";
 import { Zap, AlertTriangle, RefreshCw, LayoutTemplate, Settings, Link as LinkIcon, Database } from "lucide-react";
@@ -30,7 +30,7 @@ export default function CacheManagementPage() {
                     </button>
                     <button
                         onClick={() => {
-                            router.post('/admin/cache/clear', { type: type });
+                            router.post('/cache/clear', { type: type });
                             closeModal();
                         }}
                         className="px-4 py-2 font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition flex items-center gap-2"
@@ -45,7 +45,7 @@ export default function CacheManagementPage() {
     };
 
     return (
-        <AdminLayout>
+        <PlatformLayout>
             <Head title="Cache Management" />
             <div className="max-w-7xl mx-auto space-y-6 md:pb-12">
                 <div>
@@ -110,7 +110,7 @@ export default function CacheManagementPage() {
                     />
                 </div>
             </div>
-        </AdminLayout>
+        </PlatformLayout>
     );
 }
 

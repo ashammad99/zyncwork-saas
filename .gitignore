@@ -21,3 +21,6 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Local database dumps (real user data, password hashes)
+/backups/

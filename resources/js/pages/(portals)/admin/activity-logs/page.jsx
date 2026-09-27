@@ -103,6 +103,15 @@ function ActionBadge({ action }) {
     );
 }
 
+// Lines written by platform staff carry platform_actor; user_id is the affected user, or null.
+function actorName(log) {
+    if (log.platform_actor) {
+        return log.user ? `${log.platform_actor} (as ${log.user.name})` : log.platform_actor;
+    }
+
+    return log.user?.name ?? "Deleted User";
+}
+
 export default function Page() {
     const { props } = usePage();
     const logs = props.logs;
@@ -113,7 +122,7 @@ export default function Page() {
             ? (logs?.data ?? []).filter(
                   (l) =>
                       l.action.includes(search.toLowerCase()) ||
-                      (l.user?.name ?? "")
+                      actorName(l)
                           .toLowerCase()
                           .includes(search.toLowerCase()) ||
                       (l.description ?? "")
@@ -213,19 +222,18 @@ export default function Page() {
                                                                     "linear-gradient(135deg,#6366f1,#8b5cf6)",
                                                             }}
                                                         >
-                                                            {(log.user?.name ??
-                                                                "?")[0].toUpperCase()}
+                                                            {actorName(log)[0].toUpperCase()}
                                                         </div>
                                                         <div>
                                                             <p className="font-semibold text-gray-900 leading-tight">
-                                                                {log.user
-                                                                    ?.name ??
-                                                                    "Deleted User"}
+                                                                {actorName(log)}
                                                             </p>
                                                             <p className="text-[11px] text-gray-400 leading-tight">
-                                                                {log.user
-                                                                    ?.email ??
-                                                                    "—"}
+                                                                {log.platform_actor
+                                                                    ? "Platform staff"
+                                                                    : log.user
+                                                                          ?.email ??
+                                                                      "—"}
                                                             </p>
                                                         </div>
                                                     </div>

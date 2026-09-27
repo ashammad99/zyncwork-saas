@@ -203,6 +203,49 @@ class PlatformConsoleTest extends TestCase
         $this->assertAuthenticatedAs($admin, 'platform');
     }
 
+    public function test_login_page_renders_without_remember_me_or_password_reset(): void
+    {
+        $this->get($this->platform('/login'))
+            ->assertOk()
+            ->assertSee('Platform sign in')
+            ->assertSee(route('platform.login.attempt'), false)
+            ->assertDontSee('name="remember"', false)
+            ->assertDontSee(route('auth.forgot-password.index'), false);
+    }
+
+    public function test_console_pages_render_their_components(): void
+    {
+        $this->actingAs($this->makeAdmin(), 'platform');
+        $user = $this->makeUser('employee');
+
+        $this->get($this->platform('/tenants'))->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('(platform)/tenants/Index')
+            ->where('tenants.0.id', $this->tenant->id)
+            ->where('tenants.0.users_count', 1));
+
+        $this->get($this->platform("/tenants/{$this->tenant->id}"))->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('(platform)/tenants/Show')
+            ->where('users.0.id', $user->id)
+            ->where('can.suspend', true)
+            ->where('can.impersonate', true));
+
+        $this->get($this->platform('/billing'))->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('(platform)/billing/Index')
+            ->where('tenants.0.plan', null));
+
+        $this->get($this->platform('/health'))->assertInertia(fn (AssertableInertia $page) => $page->component('(platform)/health/page'));
+        $this->get($this->platform('/cache'))->assertInertia(fn (AssertableInertia $page) => $page->component('(platform)/cache/page'));
+    }
+
+    public function test_tenant_detail_hides_actions_the_admin_cannot_take(): void
+    {
+        $this->actingAs($this->makeAdmin([PlatformAdmin::VIEW_BILLING]), 'platform');
+
+        $this->get($this->platform("/tenants/{$this->tenant->id}"))->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('can.suspend', false)
+            ->where('can.impersonate', false));
+    }
+
     public function test_tenant_users_never_pass_platform_gates(): void
     {
         $user = $this->makeUser('admin');
