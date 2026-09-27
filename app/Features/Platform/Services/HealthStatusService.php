@@ -1,8 +1,9 @@
 <?php
 
-namespace App\Features\SystemHealth\Admin\Services;
+namespace App\Features\Platform\Services;
 
 use App\Core\BaseService;
+use App\Features\Tenancy\Models\Tenant;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 
@@ -33,6 +34,11 @@ class HealthStatusService extends BaseService
             'queue' => env('QUEUE_CONNECTION', 'sync'),
             'timezone' => config('app.timezone'),
             'memory_limit' => ini_get('memory_limit'),
+            'tenants' => [
+                'total' => Tenant::count(),
+                'suspended' => Tenant::whereNotNull('suspended_at')->count(),
+            ],
+            'failed_jobs' => DB::table('failed_jobs')->count(),
         ];
     }
 

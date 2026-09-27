@@ -11,4 +11,17 @@ use Illuminate\Database\Eloquent\Model;
 class Tenant extends Model
 {
     protected $fillable = ['name'];
+
+    // suspended_at / suspended_reason are set only by TenantSuspensionService.
+    protected function casts(): array
+    {
+        return [
+            'suspended_at' => 'datetime',
+        ];
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->suspended_at !== null;
+    }
 }

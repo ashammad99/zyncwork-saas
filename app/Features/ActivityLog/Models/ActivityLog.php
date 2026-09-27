@@ -15,6 +15,8 @@ class ActivityLog extends Model
 
     protected $fillable = [
         'user_id',
+        // Set (with user_id possibly null) when platform staff acted on the tenant.
+        'platform_actor',
         'action',
         'description',
         'subject_type',

@@ -1,12 +1,11 @@
 <?php
 
-namespace App\Features\CacheManagement\Admin\Controllers;
+namespace App\Features\Platform\Controllers;
 
 use App\Core\BaseController;
-use Illuminate\Http\Request;
+use App\Features\Platform\Requests\ClearCacheRequest;
+use App\Features\Platform\Services\CacheService;
 use Inertia\Inertia;
-use App\Features\CacheManagement\Admin\Requests\ClearCacheRequest;
-use App\Features\CacheManagement\Admin\Services\CacheService;
 
 class CacheController extends BaseController
 {
@@ -19,7 +18,7 @@ class CacheController extends BaseController
      */
     public function index()
     {
-        return Inertia::render('(portals)/admin/cache/page');
+        return Inertia::render('(platform)/cache/page');
     }
 
     /**
@@ -28,7 +27,7 @@ class CacheController extends BaseController
     public function clear(ClearCacheRequest $request)
     {
         try {
-            $msg = $this->cacheService->clearCaches($request->validated()['type']);
+            $msg = $this->cacheService->clearCaches($request->validated()['type'], $request->user('platform'));
             return redirect()->back()->with('success', $msg);
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Failed to clear cache: ' . $e->getMessage());

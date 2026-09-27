@@ -41,6 +41,12 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Platform console (Zyncwork staff): own table, host and session. No password broker.
+        'platform' => [
+            'driver' => 'session',
+            'provider' => 'platform_admins',
+        ],
     ],
 
     /*
@@ -66,6 +72,12 @@ return [
             // (App\Core\Tenancy\TenantAwareUserProvider).
             'driver' => 'tenant-eloquent',
             'model' => env('AUTH_MODEL', App\Features\Auth\Models\User::class),
+        ],
+
+        // Plain eloquent: platform admins are not tenant-owned.
+        'platform_admins' => [
+            'driver' => 'eloquent',
+            'model' => App\Features\Platform\Models\PlatformAdmin::class,
         ],
 
         // 'users' => [

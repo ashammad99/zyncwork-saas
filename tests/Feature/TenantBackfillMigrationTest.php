@@ -28,12 +28,15 @@ class TenantBackfillMigrationTest extends TestCase
     /** Every migration from add_tenant_id onwards (the tenants table itself stays). */
     private const TENANCY_STEPS = 3;
 
+    /** The platform-admin migrations that run after them, rolled back first. */
+    private const PLATFORM_STEPS = 5;
+
     public function test_existing_single_tenant_rows_are_backfilled_into_one_new_tenant(): void
     {
         $this->seed();
 
         // Back to the pre-tenancy schema, with its data still in place.
-        Artisan::call('migrate:rollback', ['--step' => self::TENANCY_STEPS, '--force' => true]);
+        Artisan::call('migrate:rollback', ['--step' => self::PLATFORM_STEPS + self::TENANCY_STEPS, '--force' => true]);
         $this->assertFalse(Schema::hasColumn('projects', 'tenant_id'));
         $this->assertSame(3, DB::table('projects')->count());
 
@@ -73,7 +76,7 @@ class TenantBackfillMigrationTest extends TestCase
     {
         DB::table('tenants')->delete(); // drop the TestCase default tenant
 
-        Artisan::call('migrate:rollback', ['--step' => self::TENANCY_STEPS, '--force' => true]);
+        Artisan::call('migrate:rollback', ['--step' => self::PLATFORM_STEPS + self::TENANCY_STEPS, '--force' => true]);
         Artisan::call('migrate', ['--force' => true]);
 
         $this->assertSame(0, DB::table('tenants')->count());
