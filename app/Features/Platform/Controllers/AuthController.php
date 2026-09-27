@@ -6,6 +6,7 @@ use App\Core\BaseController;
 use App\Features\Platform\Models\PlatformAuditLog;
 use App\Features\Platform\Requests\PlatformLoginRequest;
 use App\Features\Platform\Services\PlatformAuditLogger;
+use App\Features\Platform\Services\PlatformTwoFactorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
@@ -19,7 +20,8 @@ use Inertia\Inertia;
 class AuthController extends BaseController
 {
     public function __construct(
-        protected PlatformAuditLogger $audit
+        protected PlatformAuditLogger $audit,
+        protected PlatformTwoFactorService $twoFactor,
     ) {}
 
     public function index()
@@ -27,11 +29,16 @@ class AuthController extends BaseController
         return view('pages.platform.login.page');
     }
 
+    /**
+     * Password step only: nobody is signed in until TwoFactorController
+     * accepts a code (or, for an admin without 2FA yet, a confirmed setup).
+     */
     public function login(PlatformLoginRequest $request)
     {
         $credentials = $request->only('email', 'password') + ['is_active' => true];
+        $guard = Auth::guard('platform');
 
-        if (! Auth::guard('platform')->attempt($credentials)) {
+        if (! $guard->validate($credentials)) {
             $this->audit->record(PlatformAuditLog::LOGIN_FAILED, null, [
                 'metadata' => ['email' => $request->input('email')],
             ]);
@@ -39,14 +46,12 @@ class AuthController extends BaseController
             throw ValidationException::withMessages(['email' => __('auth.failed')]);
         }
 
+        $admin = $guard->getLastAttempted();
+
         $request->session()->regenerate();
+        $this->twoFactor->rememberPending($request->session(), $admin);
 
-        $admin = Auth::guard('platform')->user();
-        $admin->forceFill(['last_login_at' => now(), 'last_login_ip' => $request->ip()])->save();
-
-        $this->audit->record(PlatformAuditLog::LOGIN, $admin);
-
-        return redirect()->intended(route('platform.tenants.index'));
+        return redirect()->route($admin->hasTwoFactor() ? 'platform.two-factor.challenge' : 'platform.two-factor.setup');
     }
 
     public function logout(Request $request)

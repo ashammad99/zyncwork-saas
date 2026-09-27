@@ -21,6 +21,14 @@ class PlatformAuditLog extends Model
 
     public const LOGOUT = 'logout';
 
+    public const TWO_FACTOR_FAILED = 'two_factor.failed';
+
+    public const TWO_FACTOR_ENABLED = 'two_factor.enabled';
+
+    public const TWO_FACTOR_RECOVERY_USED = 'two_factor.recovery_used';
+
+    public const TWO_FACTOR_RESET = 'two_factor.reset';
+
     public const HEALTH_VIEWED = 'health.viewed';
 
     public const CACHE_CLEARED = 'cache.cleared';

@@ -23,6 +23,15 @@ return [
         'max_minutes' => 60,
     ],
 
+    // TOTP is required for every platform admin (PlatformTwoFactorService).
+    'two_factor' => [
+        // Minutes between a correct password and entering the code.
+        'pending_minutes' => 5,
+        // 30-second steps of clock drift accepted either side.
+        'window' => 1,
+        'recovery_codes' => 8,
+    ],
+
     // How platform staff are named in a tenant's own activity log.
     'actor_label' => 'Zyncwork support',
 ];

@@ -37,8 +37,11 @@ class PlatformAdmin extends Authenticatable
         'is_active',
     ];
 
+    // two_factor_* are not fillable: only PlatformTwoFactorService and the CLI set them.
     protected $hidden = [
         'password',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
     // No "remember me" for platform sessions, so no remember_token column.
@@ -51,7 +54,15 @@ class PlatformAdmin extends Authenticatable
             'capabilities' => 'array',
             'is_active' => 'boolean',
             'last_login_at' => 'datetime',
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'array',
+            'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    public function hasTwoFactor(): bool
+    {
+        return $this->two_factor_confirmed_at !== null && $this->two_factor_secret !== null;
     }
 
     public function hasCapability(string $capability): bool

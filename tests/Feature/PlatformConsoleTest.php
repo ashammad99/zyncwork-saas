@@ -23,14 +23,20 @@ class PlatformConsoleTest extends TestCase
 
     private function makeAdmin(array $capabilities = PlatformAdmin::CAPABILITIES, array $overrides = []): PlatformAdmin
     {
-        return PlatformAdmin::create(array_merge([
+        $admin = PlatformAdmin::create(array_merge([
             'name' => 'Support Person',
             'email' => uniqid('staff_').'@zyncwork.test',
             'password' => 'platform-password',
             'capabilities' => $capabilities,
             'is_active' => true,
         ], $overrides));
+
+        $this->secret = $this->enrollTwoFactor($admin);
+
+        return $admin;
     }
+
+    private string $secret;
 
     private function makeUser(string $role = 'admin'): User
     {
@@ -47,7 +53,12 @@ class PlatformConsoleTest extends TestCase
     {
         $admin = $this->makeAdmin();
 
+        // Password first (no session yet), then the TOTP code.
         $this->post($this->platform('/login'), ['email' => $admin->email, 'password' => 'platform-password'])
+            ->assertRedirect(route('platform.two-factor.challenge'));
+        $this->assertGuest('platform');
+
+        $this->post($this->platform('/two-factor'), ['code' => app(\PragmaRX\Google2FA\Google2FA::class)->getCurrentOtp($this->secret)])
             ->assertRedirect(route('platform.tenants.index'));
 
         $this->assertAuthenticatedAs($admin, 'platform');

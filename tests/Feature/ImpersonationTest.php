@@ -41,6 +41,7 @@ class ImpersonationTest extends TestCase
             'capabilities' => PlatformAdmin::CAPABILITIES,
             'is_active' => true,
         ]);
+        $this->enrollTwoFactor($this->admin);
         $this->target = $this->makeUser('employee');
     }
 

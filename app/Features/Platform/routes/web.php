@@ -6,6 +6,8 @@ use App\Features\Platform\Controllers\CacheController;
 use App\Features\Platform\Controllers\HealthController;
 use App\Features\Platform\Controllers\ImpersonationController;
 use App\Features\Platform\Controllers\TenantController;
+use App\Features\Platform\Controllers\TwoFactorController;
+use App\Features\Platform\Middleware\RequirePlatformTwoFactor;
 use Illuminate\Support\Facades\Route;
 
 // Platform console: served only on the platform host (config/platform.php).
@@ -14,10 +16,17 @@ Route::domain(config('platform.domain'))->name('platform.')->group(function () {
     Route::middleware('guest:platform')->group(function () {
         Route::get('/login', [AuthController::class, 'index'])->name('login');
         Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('login.attempt');
+
+        // Second step: only reachable with a pending sign-in (right password, no code yet).
+        Route::get('/two-factor', [TwoFactorController::class, 'challenge'])->name('two-factor.challenge');
+        Route::post('/two-factor', [TwoFactorController::class, 'verify'])->middleware('throttle:5,1')->name('two-factor.verify');
+        Route::get('/two-factor/setup', [TwoFactorController::class, 'setup'])->name('two-factor.setup');
+        Route::post('/two-factor/setup', [TwoFactorController::class, 'enable'])->middleware('throttle:5,1')->name('two-factor.enable');
     });
 
-    Route::middleware('auth:platform')->group(function () {
+    Route::middleware(['auth:platform', RequirePlatformTwoFactor::class])->group(function () {
         Route::redirect('/', '/tenants')->name('home');
+        Route::get('/two-factor/recovery-codes', [TwoFactorController::class, 'recoveryCodes'])->name('two-factor.recovery-codes');
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
         Route::get('/tenants', [TenantController::class, 'index'])->name('tenants.index');

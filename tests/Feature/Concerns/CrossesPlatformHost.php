@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Concerns;
 
+use App\Features\Platform\Models\PlatformAdmin;
 use Illuminate\Http\Request;
+use PragmaRX\Google2FA\Google2FA;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Facade;
 
@@ -20,6 +22,20 @@ trait CrossesPlatformHost
     private function platform(string $path): string
     {
         return 'http://'.config('platform.domain').$path;
+    }
+
+    /** Console sessions need confirmed TOTP (RequirePlatformTwoFactor); returns the plain secret. */
+    private function enrollTwoFactor(PlatformAdmin $admin): string
+    {
+        $secret = app(Google2FA::class)->generateSecretKey(32);
+
+        $admin->forceFill([
+            'two_factor_secret' => $secret,
+            'two_factor_recovery_codes' => [],
+            'two_factor_confirmed_at' => now(),
+        ])->save();
+
+        return $secret;
     }
 
     /** Later requests are tenant-host requests again, in a browser with no platform session. */

@@ -18,6 +18,8 @@ class UsePlatformHost
     public function handle(Request $request, Closure $next): Response
     {
         if ($request->getHost() !== config('platform.domain')) {
+            $this->useSessionStoreFor(config('session.cookie'));
+
             return $next($request);
         }
 
@@ -33,15 +35,25 @@ class UsePlatformHost
             'session.expire_on_close' => true,
             'session.same_site' => 'strict',
         ]);
-        // The session store reads its cookie name when it is built; rebuild it with these settings.
-        app('session')->forgetDrivers();
+        $this->useSessionStoreFor(config('session.cookie'));
 
         try {
             return $next($request);
         } finally {
-            // The session is saved inside $next, so this only matters when the
-            // app serves further requests (tests): the next one starts clean.
+            // The session is saved inside $next; this only matters when the
+            // process serves further requests (tests, long-running servers).
             config(['session' => $original]);
+        }
+    }
+
+    /**
+     * The session store reads its cookie name and lifetime when it is built.
+     * Rebuild it (with the current config) only when it was built for the
+     * other host, so a process serving several requests never mixes them up.
+     */
+    private function useSessionStoreFor(string $cookie): void
+    {
+        if (app('session')->driver()->getName() !== $cookie) {
             app('session')->forgetDrivers();
         }
     }

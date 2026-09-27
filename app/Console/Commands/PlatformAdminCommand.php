@@ -3,12 +3,15 @@
 namespace App\Console\Commands;
 
 use App\Features\Platform\Models\PlatformAdmin;
+use App\Features\Platform\Models\PlatformAuditLog;
+use App\Features\Platform\Services\PlatformAuditLogger;
+use App\Features\Platform\Services\PlatformTwoFactorService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 
 /**
  * The only way to create a platform admin, change its capabilities,
- * reset its password or deactivate it: there is no signup or reset page.
+ * reset its password or 2FA, or deactivate it: there is no signup or reset page.
  */
 class PlatformAdminCommand extends Command
 {
@@ -18,13 +21,14 @@ class PlatformAdminCommand extends Command
         {--capabilities= : Comma-separated: '.self::CAPABILITY_LIST.', or "all"}
         {--reset-password : Generate a new password}
         {--deactivate : Block this account from signing in}
-        {--activate : Allow this account to sign in again}';
+        {--activate : Allow this account to sign in again}
+        {--reset-2fa : Remove two-factor authentication; set up again at next sign-in (ends open sessions)}';
 
     protected $description = 'Create or update a platform (Zyncwork staff) admin';
 
     private const CAPABILITY_LIST = 'view_system_health,view_billing,suspend_tenants,impersonate';
 
-    public function handle(): int
+    public function handle(PlatformTwoFactorService $twoFactor, PlatformAuditLogger $audit): int
     {
         $email = strtolower($this->argument('email'));
         $admin = PlatformAdmin::where('email', $email)->first();
@@ -65,6 +69,12 @@ class PlatformAdminCommand extends Command
         }
 
         $admin->save();
+
+        if ($this->option('reset-2fa') && ! $creating) {
+            $twoFactor->reset($admin);
+            $audit->record(PlatformAuditLog::TWO_FACTOR_RESET, $admin, ['metadata' => ['by' => 'cli']]);
+            $this->warn('Two-factor authentication removed; it must be set up again at next sign-in.');
+        }
 
         $this->info(($creating ? 'Created' : 'Updated')." platform admin {$admin->email}.");
         $this->line('Capabilities: '.(implode(', ', $admin->capabilities ?? []) ?: '(none)'));

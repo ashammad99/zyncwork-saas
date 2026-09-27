@@ -34,6 +34,7 @@ class TenantSuspensionTest extends TestCase
             'capabilities' => PlatformAdmin::CAPABILITIES,
             'is_active' => true,
         ]);
+        $this->enrollTwoFactor($this->admin);
         $this->otherTenant = Tenant::create(['name' => 'Other Tenant']);
     }
 
