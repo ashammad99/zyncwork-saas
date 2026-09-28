@@ -10,6 +10,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
@@ -146,6 +147,88 @@ class PlatformTwoFactorTest extends TestCase
         $this->passwordStep();
         $this->post($this->platform('/two-factor'), ['recovery_code' => $codes[0]])->assertRedirect(route('platform.tenants.index'));
         $this->assertAuthenticatedAs($this->admin, 'platform');
+    }
+
+    public function test_an_attempt_is_counted_before_its_code_is_checked(): void
+    {
+        $this->enrollTwoFactor($this->admin);
+        $key = "platform-two-factor:{$this->admin->id}";
+        $countWhileChecking = null;
+
+        // Parallel requests can only all be held to the limit if each one is
+        // counted before its (slow, locked) code check, not after it.
+        $this->partialMock(PlatformTwoFactorService::class, function ($mock) use ($key, &$countWhileChecking) {
+            $mock->shouldReceive('verify')->andReturnUsing(function () use ($key, &$countWhileChecking) {
+                $countWhileChecking = RateLimiter::attempts($key);
+
+                return false;
+            });
+        });
+
+        $this->passwordStep();
+        $this->post($this->platform('/two-factor'), ['code' => '123456'])->assertRedirect(route('platform.login'));
+
+        $this->assertSame(1, $countWhileChecking);
+        $this->assertSame(1, RateLimiter::attempts($key));
+    }
+
+    public function test_attempts_already_in_flight_count_towards_the_limit(): void
+    {
+        $secret = $this->enrollTwoFactor($this->admin);
+
+        // Five requests that have been counted but not finished yet.
+        foreach (range(1, config('platform.two_factor.max_attempts')) as $i) {
+            RateLimiter::hit("platform-two-factor:{$this->admin->id}", config('platform.two_factor.lockout_minutes') * 60);
+        }
+
+        $this->passwordStep();
+        $this->post($this->platform('/two-factor'), ['code' => $this->otp($secret)])
+            ->assertRedirect(route('platform.login'))
+            ->assertSessionHasErrors('email');
+        $this->assertGuest('platform');
+    }
+
+    public function test_a_correct_code_clears_earlier_failures(): void
+    {
+        $secret = $this->enrollTwoFactor($this->admin);
+        $wrong = $this->otp($secret) === '000000' ? '111111' : '000000';
+
+        foreach (range(1, config('platform.two_factor.max_attempts') - 1) as $i) {
+            $this->withServerVariables(['REMOTE_ADDR' => "10.0.2.{$i}"]);
+            $this->passwordStep();
+            $this->post($this->platform('/two-factor'), ['code' => $wrong]);
+        }
+
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.3.1']);
+        $this->passwordStep();
+        $this->post($this->platform('/two-factor'), ['code' => $this->otp($secret)])->assertRedirect(route('platform.tenants.index'));
+
+        $this->assertSame(0, RateLimiter::attempts("platform-two-factor:{$this->admin->id}"));
+    }
+
+    public function test_a_password_reset_ends_a_sign_in_waiting_for_its_code(): void
+    {
+        $secret = $this->enrollTwoFactor($this->admin);
+        $this->passwordStep()->assertRedirect(route('platform.two-factor.challenge'));
+
+        Artisan::call('platform:admin', ['email' => $this->admin->email, '--reset-password' => true]);
+
+        $this->post($this->platform('/two-factor'), ['code' => $this->otp($secret)])->assertRedirect(route('platform.login'));
+        $this->assertGuest('platform');
+        $this->assertDatabaseMissing('platform_audit_logs', ['action' => PlatformAuditLog::LOGIN]);
+    }
+
+    public function test_a_session_that_never_went_through_sign_in_is_signed_out(): void
+    {
+        $this->enrollTwoFactor($this->admin);
+
+        // be() sets the guard without the fingerprint a real sign-in stores.
+        $this->be($this->admin, 'platform');
+
+        $this->get($this->platform('/tenants'))
+            ->assertRedirect(route('platform.login'))
+            ->assertSessionHasErrors('email');
+        $this->assertGuest('platform');
     }
 
     public function test_a_later_sign_in_never_sees_an_earlier_admins_setup_secret(): void

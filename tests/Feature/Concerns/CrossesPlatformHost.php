@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Concerns;
 
+use App\Features\Platform\Middleware\RequirePlatformTwoFactor;
 use App\Features\Platform\Models\PlatformAdmin;
 use Illuminate\Http\Request;
 use PragmaRX\Google2FA\Google2FA;
@@ -45,6 +46,38 @@ trait CrossesPlatformHost
         Auth::shouldUse('web');
         // Relative test URLs resolve against the last request's host.
         $this->app['url']->setRequest(Request::create(config('app.url')));
+    }
+
+    /**
+     * A real platform sign-in stores the password fingerprint in the session
+     * (TwoFactorController), and RequirePlatformTwoFactor rejects sessions
+     * without one, so acting as a platform admin stores it too.
+     */
+    public function actingAs(\Illuminate\Contracts\Auth\Authenticatable $user, $guard = null)
+    {
+        if ($guard === 'platform') {
+            $this->putInPlatformSession([RequirePlatformTwoFactor::PASSWORD_FINGERPRINT => $user->passwordFingerprint()]);
+        }
+
+        return parent::actingAs($user, $guard);
+    }
+
+    /**
+     * withSession() writes to the current store, which UsePlatformHost throws
+     * away when the next request is on the other host. Build the platform
+     * host's store now (as UsePlatformHost would) so that request keeps it.
+     */
+    private function putInPlatformSession(array $data): void
+    {
+        $cookie = config('session.cookie');
+        config(['session.cookie' => config('platform.session.cookie')]);
+
+        if (app('session')->driver()->getName() !== config('session.cookie')) {
+            app('session')->forgetDrivers();
+        }
+        app('session')->driver()->put($data);
+
+        config(['session.cookie' => $cookie]);
     }
 
     public function call($method, $uri, $parameters = [], $cookies = [], $files = [], $server = [], $content = null)

@@ -10,10 +10,13 @@ use App\Features\Platform\Models\PlatformAuditLog;
 use App\Features\Platform\Models\PlatformImpersonation;
 use App\Features\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
@@ -288,7 +291,13 @@ class ImpersonationTest extends TestCase
             'is_active' => true,
         ];
 
+        // A valid reset token for another user: the block, not a bad token, must stop it.
+        Mail::fake();
+        DB::table('password_reset_tokens')->insert(['email' => $other->email, 'token' => Hash::make('valid-token'), 'created_at' => now()]);
+
         $blocked = [
+            ['POST', '/auth/forgot-password', ['email' => $tenantAdmin->email]],
+            ['POST', '/auth/reset-password', ['token' => 'valid-token', 'email' => $other->email, 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123']],
             ['POST', '/admin/users', $newUser],
             ['PUT', "/admin/users/{$other->id}", ['name' => $other->name, 'email' => 'taken-over@example.com', 'role' => 'admin', 'is_active' => true, 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123']],
             ['PUT', "/admin/users/{$tenantAdmin->id}", ['name' => $tenantAdmin->name, 'email' => 'self@example.com', 'role' => 'admin', 'is_active' => true]],
@@ -308,6 +317,9 @@ class ImpersonationTest extends TestCase
             $this->assertSame($tenantAdmin->email, $tenantAdmin->fresh()->email);
             $this->assertTrue(Hash::check('password', $tenantAdmin->fresh()->password));
         });
+
+        Mail::assertNothingSent();
+        $this->assertSame(1, DB::table('password_reset_tokens')->count());
 
         // Blocked requests are refused before they run, so none is logged as a change.
         $this->assertSame(0, PlatformAuditLog::where('action', PlatformAuditLog::IMPERSONATION_ACTION)->count());
@@ -386,6 +398,63 @@ class ImpersonationTest extends TestCase
         $this->get($path)->assertRedirect(route('login'));
         $this->assertGuest('web');
         $this->assertSame(PlatformImpersonation::END_REVOKED, PlatformImpersonation::latest('id')->first()->end_reason);
+    }
+
+    public function test_resetting_the_admins_two_factor_ends_running_and_pending_sessions(): void
+    {
+        $running = $this->beginSupportSession();
+
+        Artisan::call('platform:admin', ['email' => $this->admin->email, '--reset-2fa' => true]);
+
+        $this->assertSame(PlatformImpersonation::END_REVOKED, $running->fresh()->end_reason);
+        $this->get('/timesheets')->assertRedirect(route('platform.tenants.show', $this->tenant->id));
+        $this->assertGuest('web');
+
+        $this->enrollTwoFactor($this->admin);
+        $path = $this->requestSession();
+        Artisan::call('platform:admin', ['email' => $this->admin->email, '--reset-2fa' => true]);
+
+        $this->get($path)->assertRedirect(route('login'));
+        $this->assertGuest('web');
+        $this->assertSame(PlatformImpersonation::END_REVOKED, PlatformImpersonation::latest('id')->first()->end_reason);
+    }
+
+    /** As when PLATFORM_DOMAIN is unset: the console routes are not registered (routes/web.php). */
+    private function dropConsoleRoutes(): void
+    {
+        $router = $this->app['router'];
+        $routes = new RouteCollection;
+
+        foreach ($router->getRoutes()->getRoutes() as $route) {
+            if (! str_starts_with((string) $route->getName(), 'platform.')) {
+                $routes->add($route);
+            }
+        }
+
+        $router->setRoutes($routes);
+        $this->app['url']->setRoutes($routes);
+    }
+
+    public function test_an_ending_session_goes_to_the_tenant_login_without_the_console(): void
+    {
+        $impersonation = $this->beginSupportSession();
+        $this->dropConsoleRoutes();
+
+        Carbon::setTestNow(now()->addMinutes(config('platform.impersonation.max_minutes') + 1));
+
+        $this->get('/timesheets')->assertRedirect(route('login'));
+        $this->assertGuest('web');
+        $this->assertSame(PlatformImpersonation::END_EXPIRED, $impersonation->fresh()->end_reason);
+    }
+
+    public function test_stopping_goes_to_the_tenant_login_without_the_console(): void
+    {
+        $impersonation = $this->beginSupportSession();
+        $this->dropConsoleRoutes();
+
+        $this->post('/impersonation/stop')->assertRedirect(route('login'));
+        $this->assertGuest('web');
+        $this->assertSame(PlatformImpersonation::END_STOPPED, $impersonation->fresh()->end_reason);
     }
 
     public function test_suspending_the_tenant_ends_access_during_a_session(): void

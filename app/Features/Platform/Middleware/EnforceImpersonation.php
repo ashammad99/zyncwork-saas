@@ -11,6 +11,7 @@ use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -33,13 +34,16 @@ class EnforceImpersonation
 
     /**
      * Routes that create or change any tenant user (credentials, role, active
-     * flag). Blocked outright, whoever the target: otherwise support could
-     * create or take over an account and sign in outside the time-limited,
-     * audited session. Add any new route that writes users or roles here.
+     * flag), including the password-reset flow, which has no guest middleware.
+     * Blocked outright, whoever the target: otherwise support could create or
+     * take over an account and sign in outside the time-limited, audited
+     * session. Add any new route that writes users, roles or credentials here.
      */
     private const USER_MANAGEMENT_ROUTES = [
         'admin.users.store',
         'admin.users.update',
+        'auth.forgot-password.send',
+        'password.update',
     ];
 
     public function __construct(
@@ -100,7 +104,8 @@ class EnforceImpersonation
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        $target = $impersonation
+        // The console route is missing when PLATFORM_DOMAIN is unset (routes/web.php).
+        $target = $impersonation && Route::has('platform.tenants.show')
             ? route('platform.tenants.show', $impersonation->tenant_id)
             : route('login');
 

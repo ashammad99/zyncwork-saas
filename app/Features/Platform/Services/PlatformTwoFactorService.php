@@ -36,6 +36,8 @@ class PlatformTwoFactorService extends BaseService
     {
         $session->put(self::PENDING, [
             'id' => $admin->id,
+            // The password that was checked: a reset before the code step ends this sign-in.
+            'fingerprint' => $admin->passwordFingerprint(),
             'expires_at' => now()->addMinutes(config('platform.two_factor.pending_minutes'))->getTimestamp(),
         ]);
     }
@@ -51,7 +53,15 @@ class PlatformTwoFactorService extends BaseService
             return null;
         }
 
-        return PlatformAdmin::where('is_active', true)->find($pending['id']);
+        $admin = PlatformAdmin::where('is_active', true)->find($pending['id']);
+
+        if (! $admin || ! hash_equals((string) ($pending['fingerprint'] ?? ''), $admin->passwordFingerprint())) {
+            $this->forgetPending($session);
+
+            return null;
+        }
+
+        return $admin;
     }
 
     public function forgetPending(Session $session): void

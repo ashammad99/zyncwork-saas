@@ -51,8 +51,13 @@ class TwoFactorController extends BaseController
             return $this->backToLogin();
         }
 
-        // Per account, so guessing from many IPs still hits the same limit.
-        if (RateLimiter::tooManyAttempts($this->attemptsKey($admin), config('platform.two_factor.max_attempts'))) {
+        // Per account, so guessing from many IPs still hits the same limit. Every
+        // attempt is counted before its code is checked (one atomic increment),
+        // so parallel requests cannot all pass the check first; a correct code
+        // clears the count (signIn).
+        $attempts = RateLimiter::hit($this->attemptsKey($admin), config('platform.two_factor.lockout_minutes') * 60);
+
+        if ($attempts > config('platform.two_factor.max_attempts')) {
             $this->twoFactor->forgetPending($request->session());
             $minutes = (int) ceil(RateLimiter::availableIn($this->attemptsKey($admin)) / 60);
 
@@ -152,12 +157,11 @@ class TwoFactorController extends BaseController
     }
 
     /**
-     * A wrong code at sign-in counts against the account and ends the
-     * pending sign-in: the next guess needs the password again.
+     * A wrong code at sign-in (already counted in verify) ends the pending
+     * sign-in: the next guess needs the password again.
      */
     private function rejected(Request $request, PlatformAdmin $admin, string $field)
     {
-        RateLimiter::hit($this->attemptsKey($admin), config('platform.two_factor.lockout_minutes') * 60);
         $this->audit->record(PlatformAuditLog::TWO_FACTOR_FAILED, $admin, ['metadata' => ['step' => 'challenge', 'field' => $field]]);
         $this->twoFactor->forgetPending($request->session());
 

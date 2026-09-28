@@ -40,16 +40,12 @@ class RequirePlatformTwoFactor
         return $next($request);
     }
 
+    /** A session without a fingerprint never went through sign-in (TwoFactorController), so it is not trusted. */
     private function passwordUnchanged(Request $request, $admin): bool
     {
-        $session = $request->session();
+        $stored = $request->session()->get(self::PASSWORD_FINGERPRINT);
 
-        // Sessions signed in before this check existed get the current fingerprint.
-        if (! $session->has(self::PASSWORD_FINGERPRINT)) {
-            $session->put(self::PASSWORD_FINGERPRINT, $admin->passwordFingerprint());
-        }
-
-        return hash_equals($session->get(self::PASSWORD_FINGERPRINT), $admin->passwordFingerprint());
+        return is_string($stored) && hash_equals($stored, $admin->passwordFingerprint());
     }
 
     private function signOut(Request $request, string $message): Response

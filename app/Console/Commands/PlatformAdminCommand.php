@@ -24,7 +24,7 @@ class PlatformAdminCommand extends Command
         {--reset-password : Generate a new password (ends open sessions and support sessions)}
         {--deactivate : Block this account from signing in}
         {--activate : Allow this account to sign in again}
-        {--reset-2fa : Remove two-factor authentication; set up again at next sign-in (ends open sessions)}';
+        {--reset-2fa : Remove two-factor authentication; set up again at next sign-in (ends open sessions and support sessions)}';
 
     protected $description = 'Create or update a platform (Zyncwork staff) admin';
 
@@ -73,8 +73,9 @@ class PlatformAdminCommand extends Command
         $admin->save();
 
         // Open console sessions end on their next request (RequirePlatformTwoFactor
-        // compares the password fingerprint); support sessions are ended here.
-        if ($this->option('reset-password') && ! $creating) {
+        // compares the password fingerprint and checks 2FA); support sessions are
+        // ended here. Either reset usually means the account may be compromised.
+        if (($this->option('reset-password') || $this->option('reset-2fa')) && ! $creating) {
             $ended = $this->endSupportSessions($admin, $impersonations);
             $this->warn("Open sessions will be signed out; {$ended} support ".Str::plural('session', $ended).' ended.');
         }

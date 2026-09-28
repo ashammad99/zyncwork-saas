@@ -9,6 +9,7 @@ use App\Features\Platform\Services\ImpersonationService;
 use App\Features\Tenancy\Models\Tenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 class ImpersonationController extends BaseController
@@ -54,6 +55,9 @@ class ImpersonationController extends BaseController
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return Inertia::location(route('platform.tenants.show', $impersonation->tenant_id));
+        // The console route is missing when PLATFORM_DOMAIN is unset (routes/web.php).
+        return Inertia::location(Route::has('platform.tenants.show')
+            ? route('platform.tenants.show', $impersonation->tenant_id)
+            : route('login'));
     }
 }

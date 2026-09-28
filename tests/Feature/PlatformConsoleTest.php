@@ -203,6 +203,15 @@ class PlatformConsoleTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function test_the_example_env_ships_no_platform_domain(): void
+    {
+        // A production .env copied from the example must not get a guessable host.
+        preg_match('/^PLATFORM_DOMAIN=(.*)$/m', file_get_contents(base_path('.env.example')), $match);
+
+        $this->assertNotEmpty($match, '.env.example should list PLATFORM_DOMAIN');
+        $this->assertSame('', trim($match[1]));
+    }
+
     public function test_without_a_platform_domain_the_console_is_not_served(): void
     {
         config(['platform.domain' => null]);
