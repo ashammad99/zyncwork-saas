@@ -11,6 +11,7 @@ use App\Features\Platform\Models\PlatformImpersonation;
 use App\Features\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia;
@@ -269,6 +270,122 @@ class ImpersonationTest extends TestCase
             ->where('impersonation.admin_name', 'Support Person')
             ->where('impersonation.user_name', $this->target->name)
             ->where('auth.user.id', $this->target->id));
+    }
+
+    public function test_user_management_is_blocked_while_acting_as_a_tenant_admin(): void
+    {
+        $tenantAdmin = $this->makeUser('admin');
+        $other = $this->makeUser('employee');
+        $this->get($this->requestSession($tenantAdmin))->assertRedirect();
+        $this->assertAuthenticatedAs($tenantAdmin, 'web');
+
+        $newUser = [
+            'name' => 'Backdoor',
+            'email' => 'backdoor@example.com',
+            'password' => 'new-password-123',
+            'password_confirmation' => 'new-password-123',
+            'role' => 'admin',
+            'is_active' => true,
+        ];
+
+        $blocked = [
+            ['POST', '/admin/users', $newUser],
+            ['PUT', "/admin/users/{$other->id}", ['name' => $other->name, 'email' => 'taken-over@example.com', 'role' => 'admin', 'is_active' => true, 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123']],
+            ['PUT', "/admin/users/{$tenantAdmin->id}", ['name' => $tenantAdmin->name, 'email' => 'self@example.com', 'role' => 'admin', 'is_active' => true]],
+            ['PUT', '/admin/profile', ['name' => 'Renamed', 'email' => 'profile@example.com']],
+            ['PUT', '/admin/profile/password', ['current_password' => 'password', 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123']],
+        ];
+
+        foreach ($blocked as [$method, $uri, $data]) {
+            $this->call($method, $uri, $data)->assertForbidden();
+        }
+
+        app(TenantContext::class)->run($this->tenant->id, function () use ($other, $tenantAdmin) {
+            $this->assertFalse(User::where('email', 'backdoor@example.com')->exists());
+            $this->assertSame('employee', $other->fresh()->role);
+            $this->assertSame($other->email, $other->fresh()->email);
+            $this->assertTrue(Hash::check('password', $other->fresh()->password));
+            $this->assertSame($tenantAdmin->email, $tenantAdmin->fresh()->email);
+            $this->assertTrue(Hash::check('password', $tenantAdmin->fresh()->password));
+        });
+
+        // Blocked requests are refused before they run, so none is logged as a change.
+        $this->assertSame(0, PlatformAuditLog::where('action', PlatformAuditLog::IMPERSONATION_ACTION)->count());
+        // The session itself carries on.
+        $this->get('/admin/users')->assertOk();
+    }
+
+    public function test_every_user_management_write_route_is_blocked(): void
+    {
+        $tenantAdmin = $this->makeUser('admin');
+        $this->get($this->requestSession($tenantAdmin))->assertRedirect();
+
+        $routes = collect(app('router')->getRoutes()->getRoutes())
+            ->filter(fn ($route) => str_starts_with((string) $route->getName(), 'admin.users.'))
+            ->reject(fn ($route) => in_array('GET', $route->methods(), true));
+
+        $this->assertNotEmpty($routes);
+
+        foreach ($routes as $route) {
+            $uri = str_replace('{user}', (string) $tenantAdmin->id, $route->uri());
+            $this->call($route->methods()[0], "/{$uri}")->assertForbidden();
+        }
+    }
+
+    public function test_deactivating_the_admin_ends_a_running_session(): void
+    {
+        $impersonation = $this->beginSupportSession();
+
+        $this->admin->update(['is_active' => false]);
+
+        $this->get('/timesheets')->assertRedirect(route('platform.tenants.show', $this->tenant->id));
+        $this->assertGuest('web');
+        $this->assertSame(PlatformImpersonation::END_REVOKED, $impersonation->fresh()->end_reason);
+        $this->assertSame(1, $this->tenantLog()->where('action', 'support_session_ended')->count());
+    }
+
+    public function test_removing_the_impersonate_capability_ends_a_running_session(): void
+    {
+        $impersonation = $this->beginSupportSession();
+
+        $this->admin->update(['capabilities' => [PlatformAdmin::VIEW_BILLING]]);
+
+        $this->post('/user/notification/read-all')->assertRedirect(route('platform.tenants.show', $this->tenant->id));
+        $this->assertGuest('web');
+        $this->assertSame(PlatformImpersonation::END_REVOKED, $impersonation->fresh()->end_reason);
+        // The blocked write never ran, so nothing was recorded as done in the session.
+        $this->assertSame(0, PlatformAuditLog::where('action', PlatformAuditLog::IMPERSONATION_ACTION)->count());
+    }
+
+    public function test_a_token_is_refused_once_the_admin_is_deactivated(): void
+    {
+        $path = $this->requestSession();
+
+        $this->admin->update(['is_active' => false]);
+
+        $this->get($path)->assertRedirect(route('login'));
+        $this->assertGuest('web');
+        $this->assertSame(PlatformImpersonation::END_REVOKED, PlatformImpersonation::sole()->end_reason);
+        // It never gave access, so the tenant's log has nothing.
+        $this->assertCount(0, $this->tenantLog());
+    }
+
+    public function test_resetting_the_admins_password_ends_running_and_pending_sessions(): void
+    {
+        $running = $this->beginSupportSession();
+
+        Artisan::call('platform:admin', ['email' => $this->admin->email, '--reset-password' => true]);
+
+        $this->assertSame(PlatformImpersonation::END_REVOKED, $running->fresh()->end_reason);
+        $this->get('/timesheets')->assertRedirect(route('platform.tenants.show', $this->tenant->id));
+        $this->assertGuest('web');
+
+        $path = $this->requestSession();
+        Artisan::call('platform:admin', ['email' => $this->admin->email, '--reset-password' => true]);
+
+        $this->get($path)->assertRedirect(route('login'));
+        $this->assertGuest('web');
+        $this->assertSame(PlatformImpersonation::END_REVOKED, PlatformImpersonation::latest('id')->first()->end_reason);
     }
 
     public function test_suspending_the_tenant_ends_access_during_a_session(): void

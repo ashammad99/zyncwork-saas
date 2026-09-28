@@ -12,6 +12,7 @@ use App\Features\SystemSettings\Admin\Policies\SettingPolicy;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,6 +29,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        if ($this->app->isProduction() && blank(config('platform.domain'))) {
+            throw new RuntimeException('PLATFORM_DOMAIN must be set in production (see config/platform.php).');
+        }
+
         Gate::policy(Project::class, ProjectPolicy::class);
         Gate::policy(Setting::class, SettingPolicy::class);
 

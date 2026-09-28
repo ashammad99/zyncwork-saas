@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use App\Features\Platform\Models\PlatformAdmin;
 use App\Features\Platform\Models\PlatformAuditLog;
+use App\Features\Platform\Models\PlatformImpersonation;
+use App\Features\Platform\Services\ImpersonationService;
 use App\Features\Platform\Services\PlatformAuditLogger;
 use App\Features\Platform\Services\PlatformTwoFactorService;
 use Illuminate\Console\Command;
@@ -19,7 +21,7 @@ class PlatformAdminCommand extends Command
         {email : The platform admin\'s email}
         {--name= : Display name (required when creating)}
         {--capabilities= : Comma-separated: '.self::CAPABILITY_LIST.', or "all"}
-        {--reset-password : Generate a new password}
+        {--reset-password : Generate a new password (ends open sessions and support sessions)}
         {--deactivate : Block this account from signing in}
         {--activate : Allow this account to sign in again}
         {--reset-2fa : Remove two-factor authentication; set up again at next sign-in (ends open sessions)}';
@@ -28,7 +30,7 @@ class PlatformAdminCommand extends Command
 
     private const CAPABILITY_LIST = 'view_system_health,view_billing,suspend_tenants,impersonate';
 
-    public function handle(PlatformTwoFactorService $twoFactor, PlatformAuditLogger $audit): int
+    public function handle(PlatformTwoFactorService $twoFactor, PlatformAuditLogger $audit, ImpersonationService $impersonations): int
     {
         $email = strtolower($this->argument('email'));
         $admin = PlatformAdmin::where('email', $email)->first();
@@ -70,6 +72,13 @@ class PlatformAdminCommand extends Command
 
         $admin->save();
 
+        // Open console sessions end on their next request (RequirePlatformTwoFactor
+        // compares the password fingerprint); support sessions are ended here.
+        if ($this->option('reset-password') && ! $creating) {
+            $ended = $this->endSupportSessions($admin, $impersonations);
+            $this->warn("Open sessions will be signed out; {$ended} support ".Str::plural('session', $ended).' ended.');
+        }
+
         if ($this->option('reset-2fa') && ! $creating) {
             $twoFactor->reset($admin);
             $audit->record(PlatformAuditLog::TWO_FACTOR_RESET, $admin, ['metadata' => ['by' => 'cli']]);
@@ -85,6 +94,20 @@ class PlatformAdminCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /** Ends support sessions that are running or whose hand-off token is still usable. */
+    private function endSupportSessions(PlatformAdmin $admin, ImpersonationService $impersonations): int
+    {
+        $open = PlatformImpersonation::where('platform_admin_id', $admin->id)
+            ->whereNull('ended_at')
+            ->get()
+            ->filter(fn (PlatformImpersonation $session) => $session->isLive()
+                || ($session->consumed_at === null && $session->token_expires_at->isFuture()));
+
+        $open->each(fn (PlatformImpersonation $session) => $impersonations->end($session, PlatformImpersonation::END_REVOKED));
+
+        return $open->count();
     }
 
     /** @return list<string>|null */

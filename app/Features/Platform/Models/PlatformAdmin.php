@@ -69,4 +69,14 @@ class PlatformAdmin extends Authenticatable
     {
         return $this->is_active && in_array($capability, $this->capabilities ?? [], true);
     }
+
+    /**
+     * Stored in the session at sign-in (RequirePlatformTwoFactor): a new
+     * password changes it, which ends every session opened before. Keyed,
+     * so the session never holds the password hash itself.
+     */
+    public function passwordFingerprint(): string
+    {
+        return hash_hmac('sha256', (string) $this->password, (string) config('app.key'));
+    }
 }

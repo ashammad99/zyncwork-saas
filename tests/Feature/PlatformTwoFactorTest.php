@@ -8,6 +8,7 @@ use App\Features\Platform\Services\PlatformTwoFactorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
@@ -93,10 +94,80 @@ class PlatformTwoFactorTest extends TestCase
 
         $wrong = $this->otp($secret) === '000000' ? '111111' : '000000';
 
-        $this->post($this->platform('/two-factor'), ['code' => $wrong])->assertSessionHasErrors('code');
+        $this->post($this->platform('/two-factor'), ['code' => $wrong])
+            ->assertRedirect(route('platform.login'))
+            ->assertSessionHasErrors('email');
 
         $this->assertGuest('platform');
         $this->assertDatabaseHas('platform_audit_logs', ['action' => PlatformAuditLog::TWO_FACTOR_FAILED, 'platform_admin_id' => $this->admin->id]);
+    }
+
+    public function test_a_wrong_code_ends_the_pending_sign_in(): void
+    {
+        $secret = $this->enrollTwoFactor($this->admin);
+        $this->passwordStep();
+
+        $wrong = $this->otp($secret) === '000000' ? '111111' : '000000';
+        $this->post($this->platform('/two-factor'), ['code' => $wrong]);
+
+        // Even the right code now needs the password again.
+        $this->post($this->platform('/two-factor'), ['code' => $this->otp($secret)])->assertRedirect(route('platform.login'));
+        $this->assertGuest('platform');
+    }
+
+    public function test_wrong_codes_lock_the_account_whatever_the_ip(): void
+    {
+        $secret = $this->enrollTwoFactor($this->admin);
+        $wrong = $this->otp($secret) === '000000' ? '111111' : '000000';
+
+        // A new IP each time, so the per-IP route throttles never trigger.
+        foreach (range(1, config('platform.two_factor.max_attempts')) as $i) {
+            $this->withServerVariables(['REMOTE_ADDR' => "10.0.0.{$i}"]);
+            $this->passwordStep()->assertRedirect(route('platform.two-factor.challenge'));
+            $this->post($this->platform('/two-factor'), ['code' => $wrong])->assertRedirect(route('platform.login'));
+        }
+
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.1.1']);
+        $this->passwordStep();
+        $this->post($this->platform('/two-factor'), ['code' => $this->otp($secret)])
+            ->assertRedirect(route('platform.login'))
+            ->assertSessionHasErrors(['email' => 'Too many incorrect codes. Try again in 15 minutes.']);
+        $this->assertGuest('platform');
+        $this->assertSame(config('platform.two_factor.max_attempts'), PlatformAuditLog::where('action', PlatformAuditLog::TWO_FACTOR_FAILED)->count());
+
+        // Recovery codes are locked out too.
+        [, $codes] = $this->enrollWithRecoveryCodes();
+        $this->passwordStep();
+        $this->post($this->platform('/two-factor'), ['recovery_code' => $codes[0]])->assertRedirect(route('platform.login'));
+        $this->assertGuest('platform');
+
+        Carbon::setTestNow(now()->addMinutes(config('platform.two_factor.lockout_minutes') + 1));
+
+        $this->passwordStep();
+        $this->post($this->platform('/two-factor'), ['recovery_code' => $codes[0]])->assertRedirect(route('platform.tenants.index'));
+        $this->assertAuthenticatedAs($this->admin, 'platform');
+    }
+
+    public function test_a_later_sign_in_never_sees_an_earlier_admins_setup_secret(): void
+    {
+        // Admin A starts setup and leaves the browser at the QR code.
+        $this->passwordStep();
+        preg_match('/<code[^>]*>([A-Z2-7 ]+)<\/code>/', $this->get($this->platform('/two-factor/setup'))->getContent(), $first);
+
+        // Admin B signs in on the same browser.
+        $other = PlatformAdmin::create([
+            'name' => 'Other Person',
+            'email' => 'other@zyncwork.test',
+            'password' => 'other-password',
+            'capabilities' => [],
+            'is_active' => true,
+        ]);
+        $this->post($this->platform('/login'), ['email' => $other->email, 'password' => 'other-password'])
+            ->assertRedirect(route('platform.two-factor.setup'));
+        preg_match('/<code[^>]*>([A-Z2-7 ]+)<\/code>/', $this->get($this->platform('/two-factor/setup'))->getContent(), $second);
+
+        $this->assertNotEmpty($first[1]);
+        $this->assertNotSame($first[1], $second[1]);
     }
 
     public function test_a_code_cannot_be_used_twice(): void
@@ -109,7 +180,9 @@ class PlatformTwoFactorTest extends TestCase
         $this->post($this->platform('/logout'));
 
         $this->passwordStep();
-        $this->post($this->platform('/two-factor'), ['code' => $code])->assertSessionHasErrors('code');
+        $this->post($this->platform('/two-factor'), ['code' => $code])
+            ->assertRedirect(route('platform.login'))
+            ->assertSessionHasErrors('email');
         $this->assertGuest('platform');
     }
 
@@ -127,7 +200,9 @@ class PlatformTwoFactorTest extends TestCase
 
         $this->post($this->platform('/logout'));
         $this->passwordStep();
-        $this->post($this->platform('/two-factor'), ['recovery_code' => $codes[0]])->assertSessionHasErrors('recovery_code');
+        $this->post($this->platform('/two-factor'), ['recovery_code' => $codes[0]])
+            ->assertRedirect(route('platform.login'))
+            ->assertSessionHasErrors('email');
         $this->assertGuest('platform');
     }
 
@@ -235,5 +310,36 @@ class PlatformTwoFactorTest extends TestCase
             ->get($this->platform('/tenants'))
             ->assertRedirect(route('platform.login'));
         $this->assertGuest('platform');
+    }
+
+    public function test_resetting_the_password_ends_open_sessions(): void
+    {
+        $secret = $this->enrollTwoFactor($this->admin);
+        $this->passwordStep();
+        $this->post($this->platform('/two-factor'), ['code' => $this->otp($secret)]);
+        $this->get($this->platform('/tenants'))->assertOk();
+
+        Artisan::call('platform:admin', ['email' => $this->admin->email, '--reset-password' => true]);
+
+        // A new request loads the admin afresh, as a new process would.
+        Auth::forgetGuards();
+
+        $this->get($this->platform('/tenants'))
+            ->assertRedirect(route('platform.login'))
+            ->assertSessionHasErrors('email');
+        $this->assertGuest('platform');
+    }
+
+    public function test_the_session_survives_requests_while_the_password_is_unchanged(): void
+    {
+        $secret = $this->enrollTwoFactor($this->admin);
+        $this->passwordStep();
+        $this->post($this->platform('/two-factor'), ['code' => $this->otp($secret)]);
+
+        Auth::forgetGuards();
+        $this->get($this->platform('/tenants'))->assertOk();
+        Auth::forgetGuards();
+        $this->get($this->platform('/tenants'))->assertOk();
+        $this->assertAuthenticatedAs($this->admin, 'platform');
     }
 }

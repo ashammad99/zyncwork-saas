@@ -6,10 +6,13 @@ use App\Features\ActivityLog\Models\ActivityLog;
 use App\Features\Auth\Models\User;
 use App\Features\Platform\Models\PlatformAdmin;
 use App\Features\Platform\Models\PlatformAuditLog;
+use App\Providers\AppServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia;
 use LogicException;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -154,14 +157,65 @@ class PlatformConsoleTest extends TestCase
         $this->post($this->platform("/tenants/{$this->tenant->id}/impersonate"), ['user_id' => 1, 'reason' => 'Investigating a bug'])->assertForbidden();
     }
 
-    public function test_deactivated_admin_loses_every_capability_mid_session(): void
+    public function test_deactivated_admin_is_signed_out_mid_session(): void
     {
         $admin = $this->makeAdmin();
         $this->actingAs($admin, 'platform');
+        $this->get($this->platform('/tenants'))->assertOk();
+
         $admin->update(['is_active' => false]);
 
-        $this->get($this->platform('/health'))->assertForbidden();
-        $this->get($this->platform('/billing'))->assertForbidden();
+        // Including the pages that need no capability, which list tenant users.
+        $this->get($this->platform("/tenants/{$this->tenant->id}"))
+            ->assertRedirect(route('platform.login'))
+            ->assertSessionHasErrors('email');
+        $this->assertGuest('platform');
+    }
+
+    public function test_deactivated_admin_cannot_reach_any_console_page(): void
+    {
+        $admin = $this->makeAdmin();
+        $admin->update(['is_active' => false]);
+
+        foreach (['/tenants', "/tenants/{$this->tenant->id}", '/health', '/billing'] as $path) {
+            $this->actingAs($admin, 'platform')->get($this->platform($path))->assertRedirect(route('platform.login'));
+        }
+    }
+
+    public function test_production_refuses_to_boot_without_a_platform_domain(): void
+    {
+        $this->app['env'] = 'production';
+        config(['platform.domain' => null]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('PLATFORM_DOMAIN');
+
+        (new AppServiceProvider($this->app))->boot();
+    }
+
+    public function test_production_boots_with_a_platform_domain(): void
+    {
+        $this->app['env'] = 'production';
+        config(['platform.domain' => 'console.zyncwork.test']);
+
+        (new AppServiceProvider($this->app))->boot();
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_without_a_platform_domain_the_console_is_not_served(): void
+    {
+        config(['platform.domain' => null]);
+
+        $router = $this->app['router'];
+        $router->setRoutes(new RouteCollection);
+        require base_path('app/Features/Platform/routes/web.php');
+        $router->getRoutes()->refreshNameLookups();
+
+        // Route::domain(null) would have put the console on every host.
+        $this->assertFalse($router->has('platform.login'));
+        $this->assertFalse($router->has('platform.tenants.index'));
+        $this->assertTrue($router->has('impersonation.consume'));
     }
 
     public function test_billing_and_tenant_views_are_recorded_in_the_platform_log_only(): void

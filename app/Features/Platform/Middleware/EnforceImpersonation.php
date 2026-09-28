@@ -2,6 +2,7 @@
 
 namespace App\Features\Platform\Middleware;
 
+use App\Features\Platform\Models\PlatformAdmin;
 use App\Features\Platform\Models\PlatformAuditLog;
 use App\Features\Platform\Models\PlatformImpersonation;
 use App\Features\Platform\Services\ImpersonationService;
@@ -16,7 +17,8 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Tenant host, during a support session (session has impersonation_id):
  * - ends the session once it expires or no longer matches the signed-in user;
- * - blocks changing the impersonated account's own credentials;
+ * - ends it once the platform admin is deactivated or loses the impersonate capability;
+ * - blocks changing the impersonated account's own credentials, and all user management;
  * - records every write request in platform_audit_logs (route and IDs, never bodies).
  */
 class EnforceImpersonation
@@ -27,6 +29,17 @@ class EnforceImpersonation
         'admin.profile.password.update',
         'user.profile.update',
         'user.profile.password.update',
+    ];
+
+    /**
+     * Routes that create or change any tenant user (credentials, role, active
+     * flag). Blocked outright, whoever the target: otherwise support could
+     * create or take over an account and sign in outside the time-limited,
+     * audited session. Add any new route that writes users or roles here.
+     */
+    private const USER_MANAGEMENT_ROUTES = [
+        'admin.users.store',
+        'admin.users.update',
     ];
 
     public function __construct(
@@ -48,7 +61,12 @@ class EnforceImpersonation
             return $this->endAndLeave($request, $impersonation);
         }
 
-        if ($this->changesOwnCredentials($request, $impersonation)) {
+        // Checked every request: deactivating the admin or removing the capability ends it at once.
+        if (! $impersonation->platformAdmin?->hasCapability(PlatformAdmin::IMPERSONATE)) {
+            return $this->endAndLeave($request, $impersonation, PlatformImpersonation::END_REVOKED);
+        }
+
+        if ($this->isBlocked($request)) {
             abort(403, 'Not allowed during a support session.');
         }
 
@@ -72,10 +90,10 @@ class EnforceImpersonation
         return $response;
     }
 
-    private function endAndLeave(Request $request, ?PlatformImpersonation $impersonation): Response
+    private function endAndLeave(Request $request, ?PlatformImpersonation $impersonation, string $reason = PlatformImpersonation::END_EXPIRED): Response
     {
         if ($impersonation) {
-            $this->impersonations->end($impersonation, PlatformImpersonation::END_EXPIRED);
+            $this->impersonations->end($impersonation, $reason);
         }
 
         Auth::guard('web')->logout();
@@ -89,23 +107,12 @@ class EnforceImpersonation
         return $request->header('X-Inertia') ? Inertia::location($target) : redirect()->away($target);
     }
 
-    private function changesOwnCredentials(Request $request, PlatformImpersonation $impersonation): bool
+    private function isBlocked(Request $request): bool
     {
         $name = $request->route()?->getName();
 
-        if (in_array($name, self::OWN_CREDENTIAL_ROUTES, true)) {
-            return true;
-        }
-
-        // Tenant admins can edit any user's email/password there, including their own.
-        if ($name === 'admin.users.update') {
-            $user = $request->route('user');
-            $userId = $user instanceof Model ? $user->getKey() : $user;
-
-            return (int) $userId === (int) $impersonation->target_user_id;
-        }
-
-        return false;
+        return in_array($name, self::OWN_CREDENTIAL_ROUTES, true)
+            || in_array($name, self::USER_MANAGEMENT_ROUTES, true);
     }
 
     /** @return array<string, mixed> */

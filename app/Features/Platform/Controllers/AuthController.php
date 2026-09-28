@@ -49,6 +49,8 @@ class AuthController extends BaseController
         $admin = $guard->getLastAttempted();
 
         $request->session()->regenerate();
+        // Drop any earlier, unfinished sign-in first: its setup secret must never reach this admin.
+        $this->twoFactor->forgetPending($request->session());
         $this->twoFactor->rememberPending($request->session(), $admin);
 
         return redirect()->route($admin->hasTwoFactor() ? 'platform.two-factor.challenge' : 'platform.two-factor.setup');

@@ -22,6 +22,9 @@ class PlatformImpersonation extends Model
 
     public const END_REPLACED = 'replaced';
 
+    /** The admin was deactivated, lost the impersonate capability, or had their password reset. */
+    public const END_REVOKED = 'revoked';
+
     protected $fillable = [
         'platform_admin_id',
         'tenant_id',

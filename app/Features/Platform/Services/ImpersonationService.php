@@ -78,6 +78,14 @@ class ImpersonationService extends BaseService
             return null;
         }
 
+        // The admin may have been deactivated, or lost the capability, since requesting the token.
+        // Checked before claiming it, so a refused token never shows up in the tenant's log.
+        if (! $impersonation->platformAdmin?->hasCapability(PlatformAdmin::IMPERSONATE)) {
+            $this->end($impersonation, PlatformImpersonation::END_REVOKED);
+
+            return null;
+        }
+
         // Claim the token atomically so it can only ever be used once.
         $claimed = PlatformImpersonation::whereKey($impersonation->id)
             ->whereNull('consumed_at')

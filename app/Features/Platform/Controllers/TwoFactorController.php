@@ -3,6 +3,7 @@
 namespace App\Features\Platform\Controllers;
 
 use App\Core\BaseController;
+use App\Features\Platform\Middleware\RequirePlatformTwoFactor;
 use App\Features\Platform\Models\PlatformAdmin;
 use App\Features\Platform\Models\PlatformAuditLog;
 use App\Features\Platform\Requests\TwoFactorChallengeRequest;
@@ -11,6 +12,8 @@ use App\Features\Platform\Services\PlatformAuditLogger;
 use App\Features\Platform\Services\PlatformTwoFactorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -48,11 +51,20 @@ class TwoFactorController extends BaseController
             return $this->backToLogin();
         }
 
+        // Per account, so guessing from many IPs still hits the same limit.
+        if (RateLimiter::tooManyAttempts($this->attemptsKey($admin), config('platform.two_factor.max_attempts'))) {
+            $this->twoFactor->forgetPending($request->session());
+            $minutes = (int) ceil(RateLimiter::availableIn($this->attemptsKey($admin)) / 60);
+
+            return redirect()->route('platform.login')
+                ->withErrors(['email' => "Too many incorrect codes. Try again in {$minutes} ".Str::plural('minute', $minutes).'.']);
+        }
+
         if ($request->filled('recovery_code')) {
             $remaining = $this->twoFactor->useRecoveryCode($admin, $request->input('recovery_code'));
 
             if ($remaining === null) {
-                $this->failed($admin, 'recovery_code');
+                return $this->rejected($request, $admin, 'recovery_code');
             }
 
             $this->audit->record(PlatformAuditLog::TWO_FACTOR_RECOVERY_USED, $admin, ['metadata' => ['remaining' => $remaining]]);
@@ -61,7 +73,7 @@ class TwoFactorController extends BaseController
         }
 
         if (! $this->twoFactor->verify($admin, $request->input('code'))) {
-            $this->failed($admin, 'code');
+            return $this->rejected($request, $admin, 'code');
         }
 
         return $this->signIn($request, $admin, 'totp');
@@ -130,11 +142,31 @@ class TwoFactorController extends BaseController
 
         Auth::guard('platform')->login($admin);
         $request->session()->regenerate();
+        $request->session()->put(RequirePlatformTwoFactor::PASSWORD_FINGERPRINT, $admin->passwordFingerprint());
+        RateLimiter::clear($this->attemptsKey($admin));
 
         $admin->forceFill(['last_login_at' => now(), 'last_login_ip' => $request->ip()])->save();
         $this->audit->record(PlatformAuditLog::LOGIN, $admin, ['metadata' => ['method' => $method]]);
 
         return redirect()->intended(route('platform.tenants.index'));
+    }
+
+    /**
+     * A wrong code at sign-in counts against the account and ends the
+     * pending sign-in: the next guess needs the password again.
+     */
+    private function rejected(Request $request, PlatformAdmin $admin, string $field)
+    {
+        RateLimiter::hit($this->attemptsKey($admin), config('platform.two_factor.lockout_minutes') * 60);
+        $this->audit->record(PlatformAuditLog::TWO_FACTOR_FAILED, $admin, ['metadata' => ['step' => 'challenge', 'field' => $field]]);
+        $this->twoFactor->forgetPending($request->session());
+
+        return redirect()->route('platform.login')->withErrors(['email' => 'That code is not valid. Please sign in again.']);
+    }
+
+    private function attemptsKey(PlatformAdmin $admin): string
+    {
+        return "platform-two-factor:{$admin->id}";
     }
 
     /** @throws ValidationException */
