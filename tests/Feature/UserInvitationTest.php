@@ -151,6 +151,27 @@ class UserInvitationTest extends TestCase
         Mail::assertNothingQueued();
     }
 
+    public function test_the_policy_alone_allows_only_verified_admins(): void
+    {
+        // Route middleware and EnsureEmailIsVerified normally refuse these first;
+        // the policy must hold on its own too.
+        $this->assertTrue($this->admin->can('create', UserInvitation::class));
+        $this->assertFalse($this->makeUser('admin', verified: false)->can('create', UserInvitation::class));
+        $this->assertFalse($this->makeUser('manager')->can('create', UserInvitation::class));
+        $this->assertFalse($this->makeUser('employee')->can('create', UserInvitation::class));
+
+        $this->invite();
+        $invitation = $this->invitation();
+        $otherTenant = Tenant::create(['name' => 'Other Co']);
+        $otherAdmin = $this->makeUser('admin', tenantId: $otherTenant->id);
+
+        $this->assertTrue($this->admin->can('update', $invitation));
+        $this->assertTrue($this->admin->can('delete', $invitation));
+        $this->assertFalse($otherAdmin->can('update', $invitation));
+        $this->assertFalse($otherAdmin->can('delete', $invitation));
+        $this->assertFalse($this->makeUser('manager')->can('delete', $invitation));
+    }
+
     public function test_an_admin_of_another_tenant_cannot_touch_this_tenants_invitations(): void
     {
         $this->invite();
