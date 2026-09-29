@@ -439,7 +439,7 @@ event(new ActivityLogged(
                     </p>
                     <ul class="list-disc pl-5 space-y-2 opacity-80 text-sm mb-4">
                         <li><strong>Live Pagination & Search</strong>: Automatically synchronizes UI parameters with Inertia queries.</li>
-                        <li><strong>Secure Provisioning</strong>: An isolated "Add User" modal that directly validates against <code>StoreUserRequest</code> and properly hashes credentials before executing DB insertions.</li>
+                        <li><strong>Invitations</strong>: Admins invite people by email with a role and department (<code>StoreInvitationRequest</code>). Each person sets their own password from a single-use link that expires after 7 days; admins never handle other people's passwords.</li>
                         <li><strong>Role & Access Interceptors</strong>: You can safely flip User flags (<code>is_active</code> for banning, <code>role</code> for elevation) utilizing <code>UpdateUserRequest</code>.</li>
                         <li><strong>Automatic Audit Trails</strong>: The <code>UserService</code> dynamically detects toggle changes, such as suspending an account, and automatically fires <code>ActivityLogged</code> events.</li>
                     </ul>

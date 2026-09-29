@@ -40,8 +40,13 @@ class EnforceImpersonation
      * session. Add any new route that writes users, roles or credentials here.
      */
     private const USER_MANAGEMENT_ROUTES = [
-        'admin.users.store',
         'admin.users.update',
+        'admin.invitations.store',
+        'admin.invitations.resend',
+        'admin.invitations.destroy',
+        'invitations.show',
+        'invitations.accept',
+        'auth.register.store',
         'auth.forgot-password.send',
         'password.update',
     ];

@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use App\Features\UserManagement\Admin\Services\UserService;
-use App\Features\UserManagement\Admin\Requests\StoreUserRequest;
+use App\Features\Onboarding\Models\UserInvitation;
 use App\Features\UserManagement\Admin\Requests\UpdateUserRequest;
 
 class UserController extends BaseController
@@ -28,20 +28,19 @@ class UserController extends BaseController
         return Inertia::render('(portals)/admin/users/page', [
             'users' => $users,
             'departments' => Department::orderBy('name')->get(['id', 'name']),
+            // Open invitations; expired ones stay listed so they can be resent.
+            'invitations' => UserInvitation::with('department:id,name')
+                ->whereNull('accepted_at')
+                ->whereNull('revoked_at')
+                ->latest()
+                ->get(['id', 'email', 'role', 'department_id', 'expires_at', 'created_at'])
+                ->map(fn (UserInvitation $invitation) => $invitation->only(['id', 'email', 'role', 'expires_at', 'created_at']) + [
+                    'department' => $invitation->department?->name,
+                    'expired' => $invitation->expires_at->isPast(),
+                ]),
 
             'filters' => $request->only(['search'])
         ]);
-    }
-
-    /**
-     * Store a newly created user.
-     */
-    public function store(StoreUserRequest $request)
-    {
-
-        $this->userService->createUser($request->validated());
-
-        return redirect()->back()->with('success', 'User created successfully.');
     }
 
     /**

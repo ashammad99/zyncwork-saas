@@ -11,12 +11,57 @@ use Illuminate\Notifications\Notifiable;
 use App\Features\TimeLog\Models\TimeLog;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Core\Tenancy\BelongsToTenant;
+use App\Mail\GeneralMail;
+use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\URL;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     use BelongsToTenant;
 
-    use HasFactory, Notifiable;
+    use HasFactory, MustVerifyEmailTrait, Notifiable;
+
+    /**
+     * A changed email address is unproven until its owner clicks the new link
+     * (EnsureEmailIsVerified blocks the account meanwhile). Done here so every
+     * path that changes an email (profile, admin edit, anything later) is covered.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (User $user) {
+            if ($user->isDirty('email') && ! $user->isDirty('email_verified_at')) {
+                $user->email_verified_at = null;
+            }
+        });
+
+        static::updated(function (User $user) {
+            if ($user->wasChanged('email') && ! $user->hasVerifiedEmail()) {
+                $user->sendEmailVerificationNotification();
+            }
+        });
+    }
+
+    /** Sent with the app's own mail template (GeneralMail), queued like every other email. */
+    public function sendEmailVerificationNotification(): void
+    {
+        $url = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes((int) config('auth.verification.expire', 60)),
+            ['id' => $this->getKey(), 'hash' => sha1($this->getEmailForVerification())]
+        );
+
+        Mail::to($this->getEmailForVerification())->send(new GeneralMail(
+            mailSubject: 'Verify your email address',
+            contentView: 'emails.auth.verify-email-body',
+            data: [
+                'name' => $this->name,
+                'actionUrl' => $url,
+                'expiresInMinutes' => (int) config('auth.verification.expire', 60),
+            ]
+        ));
+    }
 
     protected $fillable = [
         'name',

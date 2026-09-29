@@ -25,29 +25,6 @@ class UserService extends BaseService
     }
 
     /**
-     * Create a new user.
-     */
-    public function createUser(array $data): User
-    {
-
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'phone' => $data['phone'] ?? null,
-            'password' => \Illuminate\Support\Facades\Hash::make($data['password']),
-            'role' => $data['role'],
-            'is_active' => $data['is_active'],
-            'daily_capacity_hours' => $data['daily_capacity_hours'],
-            'department_id'        => $data['department_id'] ?? null,
-
-        ]);
-
-        event(new ActivityLogged(Auth::user(), 'user_created', "Created new user account: {$user->email}", 'system'));
-
-        return $user;
-    }
-
-    /**
      * Update user details and privileges.
      */
     public function updateUser(User $user, array $data): User

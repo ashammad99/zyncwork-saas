@@ -4,10 +4,10 @@ import { Head, useForm, router } from "@inertiajs/react";
 import Pagination from "@/Components/ui/Pagination";
 import { useModal } from "@/Contexts/ModalContext";
 import {
-    Search, Edit, Ban, RefreshCw, AlertTriangle, Plus, Eye, EyeOff,
+    Search, Edit, Ban, RefreshCw, AlertTriangle, UserPlus, Send, X,
 } from "lucide-react";
 
-export default function UsersPage({ users, filters, departments }) {
+export default function UsersPage({ users, filters, departments, invitations = [] }) {
     const [search, setSearch] = useState(filters?.search || "");
     const { openModal, closeModal } = useModal();
 
@@ -20,8 +20,38 @@ export default function UsersPage({ users, filters, departments }) {
         openModal(<EditUserForm user={user} departments={departments} onClose={closeModal} />, { size: "md" });
     };
 
-    const openAddModal = () => {
-        openModal(<AddUserForm departments={departments} onClose={closeModal} />, { size: "md" });
+    const openInviteModal = () => {
+        openModal(<InviteUserForm departments={departments} onClose={closeModal} />, { size: "md" });
+    };
+
+    const resendInvitation = (invitation) => {
+        router.post(`/admin/invitations/${invitation.id}/resend`, {}, { preserveScroll: true });
+    };
+
+    const confirmRevoke = (invitation) => {
+        openModal(
+            <div className="p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Revoke invitation?</h3>
+                <p className="mb-6 text-gray-700">
+                    The link sent to <strong>{invitation.email}</strong> will stop working.
+                </p>
+                <div className="flex justify-end gap-3">
+                    <button onClick={closeModal} className="px-4 py-2 bg-gray-100 font-semibold text-gray-700 rounded-lg hover:bg-gray-200 transition">
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => {
+                            router.delete(`/admin/invitations/${invitation.id}`, { preserveScroll: true });
+                            closeModal();
+                        }}
+                        className="px-4 py-2 font-semibold text-white rounded-lg transition bg-red-600 hover:bg-red-700"
+                    >
+                        Revoke
+                    </button>
+                </div>
+            </div>,
+            { size: "md" }
+        );
     };
 
     const confirmSuspension = (user) => {
@@ -91,11 +121,60 @@ export default function UsersPage({ users, filters, departments }) {
                                 onChange={(e) => setSearch(e.target.value)}
                             />
                         </form>
-                        <button onClick={openAddModal} className="bg-primary text-white p-2.5 rounded-xl hover:bg-primary/90 transition flex items-center justify-center shrink-0" title="Add New User">
-                            <Plus size={20} />
+                        <button onClick={openInviteModal} className="bg-primary text-white p-2.5 rounded-xl hover:bg-primary/90 transition flex items-center justify-center shrink-0" title="Invite User">
+                            <UserPlus size={20} />
                         </button>
                     </div>
                 </div>
+
+                {invitations.length > 0 && (
+                    <div className="bg-white border text-sm border-gray-200 shadow-sm rounded-2xl overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-200">
+                            <h2 className="font-bold text-gray-900">Pending invitations</h2>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left whitespace-nowrap">
+                                <thead className="bg-gray-50/50 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px] font-bold">
+                                <tr>
+                                    <th className="px-6 py-4">Email</th>
+                                    <th className="px-6 py-4">Role</th>
+                                    <th className="px-6 py-4">Department</th>
+                                    <th className="px-6 py-4">Expires</th>
+                                    <th className="px-6 py-4 text-right">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                {invitations.map((invitation) => (
+                                    <tr key={invitation.id} className="hover:bg-gray-50/50 transition-colors">
+                                        <td className="px-6 py-4 font-semibold text-gray-900">{invitation.email}</td>
+                                        <td className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-700">{invitation.role}</td>
+                                        <td className="px-6 py-4">
+                                            {invitation.department
+                                                ? <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700">{invitation.department}</span>
+                                                : <span className="text-xs text-gray-400 italic">No department</span>}
+                                        </td>
+                                        <td className="px-6 py-4 text-xs">
+                                            {invitation.expired
+                                                ? <span className="px-2.5 py-1 rounded-full font-semibold bg-red-100 text-red-700">Expired</span>
+                                                : <span className="text-gray-500">{new Date(invitation.expires_at).toLocaleDateString()}</span>}
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button onClick={() => resendInvitation(invitation)} className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Resend (new link, new expiry)">
+                                                    <Send size={16} />
+                                                </button>
+                                                <button onClick={() => confirmRevoke(invitation)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Revoke">
+                                                    <X size={16} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
 
                 <div className="bg-white border text-sm border-gray-200 shadow-sm rounded-2xl overflow-hidden">
                     <div className="overflow-x-auto">
@@ -258,6 +337,9 @@ function EditUserForm({ user, departments, onClose }) {
                         <input type="email" value={data.email} onChange={(e) => setData("email", e.target.value)}
                                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" required />
                         {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+                        {data.email !== user.email && (
+                            <p className="mt-1 text-xs text-amber-600">They'll need to confirm the new address before they can use the app again.</p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
@@ -324,95 +406,44 @@ function EditUserForm({ user, departments, onClose }) {
     );
 }
 
-// ─── Add User Form ────────────────────────────────────────────────────────────
+// ─── Invite User Form ─────────────────────────────────────────────────────────
+// The invitee sets their own name and password from the emailed link.
 
-function AddUserForm({ departments, onClose }) {
-    const [showPassword, setShowPassword] = useState(false);
-
+function InviteUserForm({ departments, onClose }) {
     const { data, setData, post, processing, errors } = useForm({
-        name:                  "",
-        email:                 "",
-        phone:                 "",
-        password:              "",
-        password_confirmation: "",
-        role:                  "employee",
-        is_active:             true,
-        daily_capacity_hours:  8,
-        department_id:         null,
+        email:         "",
+        role:          "employee",
+        department_id: null,
     });
 
     const submit = (e) => {
         e.preventDefault();
-        post(`/admin/users`, { onSuccess: () => onClose() });
+        post(`/admin/invitations`, { onSuccess: () => onClose() });
     };
 
     return (
         <div className="p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Add New User</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Invite a User</h2>
+            <p className="text-sm text-gray-500 mb-6">
+                They'll get an email with a link to set up their account. The link works once and expires after 7 days.
+            </p>
             <form onSubmit={submit} className="space-y-4">
                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
-                    <input type="text" value={data.name} onChange={(e) => setData("name", e.target.value)}
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                    <input type="email" value={data.email} onChange={(e) => setData("email", e.target.value)}
                            className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" required />
-                    {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
+                    {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
-                        <input type="email" value={data.email} onChange={(e) => setData("email", e.target.value)}
-                               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" required />
-                        {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
-                    </div>
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
-                        <input type="tel" value={data.phone} onChange={(e) => setData("phone", e.target.value)}
-                               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" />
-                        {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
-                        <div className="relative">
-                            <input type={showPassword ? "text" : "password"} value={data.password}
-                                   onChange={(e) => setData("password", e.target.value)}
-                                   className="w-full pl-4 pr-10 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" required />
-                            <button type="button" onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
-                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                            </button>
-                        </div>
-                        {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
-                    </div>
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Confirm Password</label>
-                        <input type={showPassword ? "text" : "password"} value={data.password_confirmation}
-                               onChange={(e) => setData("password_confirmation", e.target.value)}
-                               className="w-full pl-4 pr-10 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" required />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
-                        <select value={data.role} onChange={(e) => setData("role", e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm">
-                            <option value="admin">Administrator</option>
-                            <option value="manager">Manager</option>
-                            <option value="employee">Employee</option>
-                        </select>
-                        {errors.role && <p className="mt-1 text-xs text-red-600">{errors.role}</p>}
-                    </div>
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Daily Capacity Hours</label>
-                        <input type="number" min="1" max="12" value={data.daily_capacity_hours}
-                               onChange={(e) => setData("daily_capacity_hours", e.target.value)}
-                               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" required />
-                        <p className="mt-1 text-xs text-gray-500">Default is 8 hours per day.</p>
-                        {errors.daily_capacity_hours && <p className="mt-1 text-xs text-red-600">{errors.daily_capacity_hours}</p>}
-                    </div>
+                <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
+                    <select value={data.role} onChange={(e) => setData("role", e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm">
+                        <option value="admin">Administrator</option>
+                        <option value="manager">Manager</option>
+                        <option value="employee">Employee</option>
+                    </select>
+                    {errors.role && <p className="mt-1 text-xs text-red-600">{errors.role}</p>}
                 </div>
 
                 <DepartmentSelect
@@ -422,20 +453,6 @@ function AddUserForm({ departments, onClose }) {
                     error={errors.department_id}
                 />
 
-                <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Account Status</label>
-                    <div className="flex gap-4 mt-2">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="is_active" checked={data.is_active === true} onChange={() => setData("is_active", true)} className="text-primary focus:ring-primary" />
-                            <span className="text-sm text-gray-700">Active</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer text-red-600">
-                            <input type="radio" name="is_active" checked={data.is_active === false} onChange={() => setData("is_active", false)} className="text-red-600 focus:ring-red-600" />
-                            <span className="text-sm font-medium">Suspended</span>
-                        </label>
-                    </div>
-                </div>
-
                 <div className="flex justify-end gap-3 mt-8">
                     <button type="button" onClick={onClose} disabled={processing}
                             className="px-4 py-2 bg-gray-100 font-semibold text-gray-700 rounded-lg hover:bg-gray-200 transition disabled:opacity-50">
@@ -444,7 +461,7 @@ function AddUserForm({ departments, onClose }) {
                     <button type="submit" disabled={processing}
                             className="px-4 py-2 bg-primary font-semibold text-white rounded-lg hover:bg-primary/90 transition disabled:opacity-50 flex items-center gap-2">
                         {processing && <RefreshCw size={16} className="animate-spin" />}
-                        Create User
+                        Send Invitation
                     </button>
                 </div>
             </form>

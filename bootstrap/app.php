@@ -72,6 +72,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Core\Middleware\EnsureUserIsActive::class,
             \App\Features\Platform\Middleware\EnforceImpersonation::class,
+            // After EnforceImpersonation, so an ended support session is closed before this redirects.
+            \App\Core\Middleware\EnsureEmailIsVerified::class,
             \App\Core\Middleware\HandleInertiaRequests::class,
         ]);
 

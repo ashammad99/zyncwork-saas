@@ -1,0 +1,193 @@
+<?php
+
+namespace App\Features\Onboarding\Services;
+
+use App\Core\BaseService;
+use App\Core\Tenancy\TenantContext;
+use App\Features\ActivityLog\Events\ActivityLogged;
+use App\Features\Auth\Models\User;
+use App\Features\Onboarding\Models\UserInvitation;
+use App\Features\Tenancy\Models\Tenant;
+use App\Mail\GeneralMail;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Invitations are the only way to add a user to an existing tenant.
+ *
+ * The admin side runs in the admin's tenant (the tenant scope applies); the
+ * accept side is a guest request, so it finds the invite by its token hash
+ * across tenants and then acts inside the invite's tenant.
+ */
+class InvitationService extends BaseService
+{
+    public function __construct(
+        protected TenantContext $tenantContext,
+    ) {}
+
+    public function invite(User $inviter, array $data): UserInvitation
+    {
+        $this->countTowardsHourlyLimit($inviter);
+
+        $token = Str::random(64);
+
+        $invitation = UserInvitation::create([
+            'email' => Str::lower(trim($data['email'])),
+            'role' => $data['role'],
+            'department_id' => $data['department_id'] ?? null,
+            'invited_by' => $inviter->id,
+            'token_hash' => hash('sha256', $token),
+            'expires_at' => now()->addDays((int) config('onboarding.invitations.expire_days')),
+        ]);
+
+        $this->sendInvite($invitation, $inviter, $token);
+        event(new ActivityLogged($inviter, 'user_invited', "Invited {$invitation->email} as {$invitation->role}.", 'system'));
+
+        return $invitation;
+    }
+
+    /** A new token (the old link stops working) and a new expiry. */
+    public function resend(UserInvitation $invitation, User $by): void
+    {
+        if ($invitation->accepted_at !== null || $invitation->revoked_at !== null) {
+            throw ValidationException::withMessages(['invitation' => 'This invitation has already been used or revoked.']);
+        }
+
+        // Counted before checking (one atomic increment), so parallel clicks can't all get through.
+        if (RateLimiter::hit("invitation-resend:{$invitation->id}", 60) > 1) {
+            throw ValidationException::withMessages(['invitation' => 'This invitation was just sent. Please wait a minute before sending it again.']);
+        }
+
+        $this->countTowardsHourlyLimit($by);
+
+        $token = Str::random(64);
+        $invitation->forceFill([
+            'token_hash' => hash('sha256', $token),
+            'expires_at' => now()->addDays((int) config('onboarding.invitations.expire_days')),
+        ])->save();
+
+        $this->sendInvite($invitation, $by, $token);
+        event(new ActivityLogged($by, 'user_invite_resent', "Resent the invitation to {$invitation->email}.", 'system'));
+    }
+
+    public function revoke(UserInvitation $invitation, User $by): void
+    {
+        if ($invitation->accepted_at !== null || $invitation->revoked_at !== null) {
+            throw ValidationException::withMessages(['invitation' => 'This invitation has already been used or revoked.']);
+        }
+
+        $invitation->forceFill(['revoked_at' => now()])->save();
+        event(new ActivityLogged($by, 'user_invite_revoked', "Revoked the invitation to {$invitation->email}.", 'system'));
+    }
+
+    /**
+     * The open invite behind a token, or null when it is unknown, used,
+     * revoked, expired, or its tenant is suspended. Callers show one message
+     * for all of these, so a link never reveals which it was.
+     */
+    public function findOpen(string $token): ?UserInvitation
+    {
+        $invitation = UserInvitation::withoutTenancy()
+            ->where('token_hash', hash('sha256', $token))
+            ->first();
+
+        if (! $invitation || ! $invitation->isOpen()) {
+            return null;
+        }
+
+        $tenant = Tenant::find($invitation->tenant_id);
+
+        return $tenant && ! $tenant->isSuspended() ? $invitation : null;
+    }
+
+    /**
+     * Create the invited user (verified: the emailed link proves the address)
+     * and use up the invite. Returns null when the invite is no longer open.
+     *
+     * @throws ValidationException when the email has become taken meanwhile
+     */
+    public function accept(string $token, array $data): ?User
+    {
+        $invitation = $this->findOpen($token);
+
+        if (! $invitation) {
+            return null;
+        }
+
+        return $this->tenantContext->run($invitation->tenant_id, function () use ($invitation, $data) {
+            try {
+                return DB::transaction(function () use ($invitation, $data) {
+                    // Claimed atomically, so two requests with the same link create one user.
+                    $claimed = UserInvitation::whereKey($invitation->id)
+                        ->whereNull('accepted_at')
+                        ->whereNull('revoked_at')
+                        ->where('expires_at', '>', now())
+                        ->update(['accepted_at' => now()]);
+
+                    if (! $claimed) {
+                        return null;
+                    }
+
+                    // Emails are unique platform-wide: another company may have signed this person up since.
+                    if (User::withoutTenancy()->where('email', $invitation->email)->exists()) {
+                        throw $this->emailTaken();
+                    }
+
+                    $user = User::create([
+                        'name' => $data['name'],
+                        'email' => $invitation->email,
+                        'password' => $data['password'],
+                        'role' => $invitation->role,
+                        'is_active' => true,
+                        'department_id' => $invitation->department_id,
+                    ]);
+                    $user->forceFill(['email_verified_at' => now()])->save();
+
+                    UserInvitation::whereKey($invitation->id)->update(['accepted_user_id' => $user->id]);
+
+                    event(new ActivityLogged($user, 'invitation_accepted', "Joined as {$user->role} by invitation.", 'security'));
+
+                    return $user;
+                });
+            } catch (UniqueConstraintViolationException) {
+                // The same email was taken between the check and the insert.
+                throw $this->emailTaken();
+            }
+        });
+    }
+
+    private function sendInvite(UserInvitation $invitation, User $inviter, string $token): void
+    {
+        $companyName = Tenant::find($invitation->tenant_id)?->name;
+
+        Mail::to($invitation->email)->send(new GeneralMail(
+            mailSubject: "You're invited to join {$companyName} on ".config('app.name'),
+            contentView: 'emails.auth.invitation-body',
+            data: [
+                'companyName' => $companyName,
+                'inviterName' => $inviter->name,
+                'role' => $invitation->role,
+                'actionUrl' => route('invitations.show', $token),
+                'expiresAt' => $invitation->expires_at->toFormattedDateString(),
+            ]
+        ));
+    }
+
+    /** New invites and resends share one per-tenant budget, so the app can't be used to send bulk email. */
+    private function countTowardsHourlyLimit(User $user): void
+    {
+        // Counted before checking (one atomic increment), so parallel requests can't all get through.
+        if (RateLimiter::hit("invitations:tenant:{$user->tenant_id}", 3600) > (int) config('onboarding.invitations.per_hour')) {
+            throw ValidationException::withMessages(['email' => 'Too many invitations sent in the last hour. Please try again later.']);
+        }
+    }
+
+    private function emailTaken(): ValidationException
+    {
+        return ValidationException::withMessages(['email' => 'This email address already has an account. Ask the person to use a different email.']);
+    }
+}
