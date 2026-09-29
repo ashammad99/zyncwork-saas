@@ -210,6 +210,25 @@ class EmailVerificationTest extends TestCase
         $this->get('/admin/users')->assertOk();
     }
 
+    public function test_the_profile_refuses_an_email_that_is_already_taken(): void
+    {
+        $user = $this->makeUser('employee', verified: true);
+        $sameTenant = $this->makeUser('employee', verified: true);
+        $otherTenant = \App\Features\Tenancy\Models\Tenant::create(['name' => 'Other Co']);
+        $elsewhere = app(TenantContext::class)->run($otherTenant->id, fn () => $this->makeUser('employee', verified: true));
+
+        foreach ([$sameTenant->email, strtoupper($elsewhere->email)] as $taken) {
+            // A validation message, not a database error.
+            $this->actingAs($user)->put('/user/profile', ['name' => $user->name, 'email' => $taken])->assertInvalid(['email']);
+        }
+
+        $this->assertSame($user->email, $user->fresh()->email);
+        $this->assertTrue($user->fresh()->hasVerifiedEmail());
+
+        // Keeping your own address is still fine.
+        $this->actingAs($user)->put('/user/profile', ['name' => 'Renamed', 'email' => $user->email])->assertValid();
+    }
+
     public function test_other_profile_changes_keep_the_email_verified(): void
     {
         $user = $this->makeUser('employee', verified: true);
