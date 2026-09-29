@@ -3,6 +3,7 @@
 namespace App\Features\TimeLog\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Tenancy\TenantRule;
 
 class BulkApproveTimeLogsRequest extends FormRequest
 {
@@ -15,7 +16,7 @@ class BulkApproveTimeLogsRequest extends FormRequest
     {
         return [
             'time_log_ids'   => ['required', 'array', 'min:1', 'max:500'],
-            'time_log_ids.*' => ['required', 'integer', 'exists:time_logs,id'],
+            'time_log_ids.*' => ['required', 'integer', TenantRule::exists('time_logs')],
         ];
     }
 

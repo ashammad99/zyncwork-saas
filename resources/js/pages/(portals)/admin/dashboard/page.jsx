@@ -83,12 +83,12 @@ export default function DashboardPage({ metrics, recent_activity }) {
                                             <div className="absolute top-8 bottom-[-24px] left-5 w-px bg-gray-100 last:hidden"></div>
 
                                             <div className="w-10 h-10 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0 z-10 overflow-hidden">
-                                                {log.user?.profile_image ? (
+                                                {!log.platform_actor && log.user?.profile_image ? (
                                                     <img     src={`/admin/profile-image/${log.user.profile_image}`}
                                                              className="w-full h-full object-cover" />
                                                 ) : (
                                                     <span className="text-sm font-bold text-primary">
-                                                        {log.user?.name?.charAt(0) || "S"}
+                                                        {(log.platform_actor || log.user?.name)?.charAt(0) || "S"}
                                                     </span>
                                                 )}
                                             </div>
@@ -96,7 +96,7 @@ export default function DashboardPage({ metrics, recent_activity }) {
                                                 <div className="flex items-start justify-between gap-4">
                                                     <div>
                                                         <p className="font-semibold text-gray-900">
-                                                            {log.user?.name || "System"} <span className="text-gray-400 font-normal">performed an action</span>
+                                                            {log.platform_actor || log.user?.name || "System"} <span className="text-gray-400 font-normal">performed an action</span>
                                                         </p>
                                                         <p className="text-gray-600 mt-1">{log.description}</p>
                                                     </div>
@@ -137,16 +137,6 @@ export default function DashboardPage({ metrics, recent_activity }) {
                                                 <Users size={16} />
                                             </div>
                                             <span className="font-semibold text-sm text-gray-700">Manage Users</span>
-                                        </div>
-                                    </div>
-                                </Link>
-                                <Link href="/admin/cache" className="block p-3 rounded-xl hover:bg-gray-50 border border-transparent hover:border-gray-100 transition">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                                                <Activity size={16} />
-                                            </div>
-                                            <span className="font-semibold text-sm text-gray-700">Clear Cache</span>
                                         </div>
                                     </div>
                                 </Link>

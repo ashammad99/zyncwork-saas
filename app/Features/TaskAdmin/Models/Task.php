@@ -11,9 +11,12 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Core\Tenancy\BelongsToTenant;
 
 class Task extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'project_id',
         'assignee_id',

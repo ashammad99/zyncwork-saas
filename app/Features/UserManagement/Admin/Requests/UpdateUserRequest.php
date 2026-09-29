@@ -3,6 +3,7 @@
 namespace App\Features\UserManagement\Admin\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Core\Tenancy\TenantRule;
 
 class UpdateUserRequest extends FormRequest
 {
@@ -26,7 +27,7 @@ class UpdateUserRequest extends FormRequest
             'role' => 'required|in:admin,manager,employee',
             'is_active' => 'required|boolean',
             'daily_capacity_hours' => ['required', 'integer', 'min:1', 'max:12'],
-            'department_id'        => 'nullable|exists:departments,id',
+            'department_id'        => ['nullable', TenantRule::exists('departments')],
 
         ];
     }

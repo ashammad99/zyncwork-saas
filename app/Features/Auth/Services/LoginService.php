@@ -23,13 +23,19 @@ class LoginService extends BaseService
         if (Auth::attempt($credentials, $remember)) {
             $user = Auth::user();
 
-            if (!$user->is_active) {
+            $suspended = match (true) {
+                ! $user->is_active => 'Your account has been suspended. Please contact an administrator.',
+                (bool) $user->tenant?->isSuspended() => 'Your organisation\'s account has been suspended. Please contact support.',
+                default => null,
+            };
+
+            if ($suspended) {
                 Auth::logout();
                 request()->session()->invalidate();
                 request()->session()->regenerateToken();
 
                 throw ValidationException::withMessages([
-                    'email' => 'Your account has been suspended. Please contact an administrator.',
+                    'email' => $suspended,
                 ]);
             }
 

@@ -5,6 +5,7 @@ namespace App\Features\TaskAdmin\Requests;
 use App\Features\TaskAdmin\Models\Task;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Core\Tenancy\TenantRule;
 
 class StoreTaskRequest extends FormRequest
 {
@@ -16,9 +17,9 @@ class StoreTaskRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'project_id'          => ['required', 'integer', 'exists:projects,id'],
-            'assignee_id'         => ['nullable', 'integer', 'exists:users,id'],
-            'depends_on_task_id'  => ['nullable', 'integer', 'exists:tasks,id'],
+            'project_id'          => ['required', 'integer', TenantRule::exists('projects')],
+            'assignee_id'         => ['nullable', 'integer', TenantRule::exists('users')],
+            'depends_on_task_id'  => ['nullable', 'integer', TenantRule::exists('tasks')],
             'title'               => ['required', 'string', 'max:255'],
             'description'         => ['nullable', 'string'],
             'status'              => ['required', Rule::in(Task::STATUSES)],

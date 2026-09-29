@@ -57,9 +57,13 @@ class SuspendedUserSessionTest extends TestCase
 
     public function test_suspended_manager_and_admin_are_logged_out_too(): void
     {
-        foreach (['manager', 'admin'] as $role) {
-            $user = $this->makeUser(['role' => $role, 'is_active' => false]);
+        // Created up front: logging out clears the tenant, as it should.
+        $users = array_map(
+            fn ($role) => $this->makeUser(['role' => $role, 'is_active' => false]),
+            ['manager', 'admin']
+        );
 
+        foreach ($users as $user) {
             $this->actingAs($user)->get('/timesheets')->assertRedirect(route('login'));
             $this->assertGuest();
         }

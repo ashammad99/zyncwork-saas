@@ -64,10 +64,21 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Before the session starts: gives the platform host its own session cookie.
+        $middleware->web(prepend: [
+            \App\Features\Platform\Middleware\UsePlatformHost::class,
+        ]);
+
         $middleware->web(append: [
             \App\Core\Middleware\EnsureUserIsActive::class,
+            \App\Features\Platform\Middleware\EnforceImpersonation::class,
             \App\Core\Middleware\HandleInertiaRequests::class,
         ]);
+
+        // Guests on the platform host go to the platform login, never the tenant one.
+        $middleware->redirectGuestsTo(fn (\Illuminate\Http\Request $request) => $request->getHost() === config('platform.domain')
+            ? route('platform.login')
+            : route('login'));
 
         // Middleware aliases
         $middleware->alias([

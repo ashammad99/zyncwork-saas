@@ -14,8 +14,6 @@ import {
     Bell,
     Key,
     Globe,
-    Zap,
-    Activity,
     History,
     Building2,
     FolderKanban,
@@ -73,8 +71,6 @@ export default function AdminLayout({ children }) {
         { name: "Time Logs", href: "/admin/timesheets", icon: Clock },
         { name: "Settings", href: "/admin/settings", icon: Settings,},
         { name: "Burndown", href: "/reports/burndown", icon: TrendingDown },
-        { name: "Cache", href: "/admin/cache", icon: Zap },
-        { name: "System Health", href: "/admin/system/health", icon: Activity, },
         { name: "Activity Logs", href: "/admin/activity-logs", icon: History, },
     ];
 

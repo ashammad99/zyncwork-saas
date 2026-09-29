@@ -4,6 +4,7 @@ namespace App\Features\SystemSettings\Admin\Services;
 
 use App\Core\BaseService;
 use App\Features\SystemSettings\Admin\Models\Setting;
+use App\Core\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Cache;
 
 class SettingsService extends BaseService
@@ -108,25 +109,28 @@ class SettingsService extends BaseService
 
     public function update(array $payload): void
 {
+    // upsert() skips model events, so tenant_id is set here rather than by BelongsToTenant.
+    $tenantId = app(TenantContext::class)->idOrFail();
+
     $rows = [];
     foreach ($payload as $key => $value) {
         if (is_bool($value)) {
             $value = $value ? '1' : '0';
         }
 
-        $rows[] = ['setting_key' => $key, 'setting_value' => (string) $value];
+        $rows[] = ['tenant_id' => $tenantId, 'setting_key' => $key, 'setting_value' => (string) $value];
     }
 
     if ($rows === []) {
         return;
     }
 
-    // Single atomic upsert on the unique setting_key; updateOrCreate's
+    // Single atomic upsert on the unique (tenant_id, setting_key); updateOrCreate's
     // select-then-insert could hit a duplicate-key error under concurrent saves.
-    Setting::upsert($rows, ['setting_key'], ['setting_value']);
+    Setting::upsert($rows, ['tenant_id', 'setting_key'], ['setting_value']);
 
     // upsert() bypasses model events, so flush the cache the saved() hook would have.
-    Cache::forget(Setting::CACHE_KEY);
+    Cache::forget(Setting::cacheKey($tenantId));
 }
 
     public static function fieldsMap(): array

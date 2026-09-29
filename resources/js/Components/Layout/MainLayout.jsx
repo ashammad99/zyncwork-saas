@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, createContext, useContext } from "react";
 import Toast from "../ui/Toast";
+import ImpersonationBanner from "./ImpersonationBanner";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import Modal from "../ui/Modal";
 import { ModalProvider } from "../../Contexts/ModalContext";
@@ -17,7 +18,11 @@ import { router } from "@inertiajs/react";
  *
  * YourPage.layout = page => <MainLayout>{page}</MainLayout>;
  */
+// Portal layouts wrap MainLayout again inside the one app.jsx adds; the banner renders once.
+const InsideMainLayout = createContext(false);
+
 export default function MainLayout({ children }) {
+    const nested = useContext(InsideMainLayout);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -34,11 +39,14 @@ export default function MainLayout({ children }) {
     }, []);
 
     return (
-        <ModalProvider>
-            {loading && <LoadingSpinner />}
-            {children}
-            <Toast />
-            <Modal />
-        </ModalProvider>
+        <InsideMainLayout.Provider value={true}>
+            <ModalProvider>
+                {!nested && <ImpersonationBanner />}
+                {loading && <LoadingSpinner />}
+                {children}
+                <Toast />
+                <Modal />
+            </ModalProvider>
+        </InsideMainLayout.Provider>
     );
 }

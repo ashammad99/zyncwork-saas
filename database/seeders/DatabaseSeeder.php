@@ -2,8 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Core\Tenancy\TenantContext;
 use App\Features\Auth\Models\User;
 use App\Features\Departments\Admin\Models\Department;
+use App\Features\Tenancy\Models\Tenant;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -16,6 +18,14 @@ class DatabaseSeeder extends Seeder
      * Seed the application's database.
      */
     public function run(): void
+    {
+        // Seed into the first tenant (creating "Default" on a fresh database).
+        $tenant = Tenant::query()->oldest('id')->first() ?? Tenant::create(['name' => 'Default']);
+
+        app(TenantContext::class)->run($tenant->id, fn () => $this->seedTenant());
+    }
+
+    private function seedTenant(): void
     {
         // User::factory(10)->create();
 

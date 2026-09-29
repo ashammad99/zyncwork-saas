@@ -4,6 +4,7 @@ namespace App\Features\Departments\Admin\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Core\Tenancy\TenantRule;
 
 class UpdateDepartmentRequest extends FormRequest
 {
@@ -17,13 +18,13 @@ class UpdateDepartmentRequest extends FormRequest
         $departmentId = $this->route('department')?->id ?? $this->route('department');
 
         return [
-            'manager_id' => ['nullable', 'exists:users,id'],
+            'manager_id' => ['nullable', TenantRule::exists('users')],
             'name' => [
                 'required',
                 'string',
                 'max:255',
 
-                Rule::unique('departments', 'name')->ignore($departmentId),
+                TenantRule::unique('departments', 'name')->ignore($departmentId),
             ],
             'description' => ['nullable', 'string'],
             'color' => ['nullable', 'string', 'max:50'],

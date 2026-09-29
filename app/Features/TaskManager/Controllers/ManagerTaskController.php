@@ -12,6 +12,7 @@ use Inertia\Inertia;
 use Illuminate\Http\RedirectResponse;
 
 use Inertia\Response;
+use App\Core\Tenancy\TenantRule;
 
 class ManagerTaskController extends BaseController
 {
@@ -186,7 +187,7 @@ class ManagerTaskController extends BaseController
         $this->authorize('assign', $task);
 
         $validated = $request->validate([
-            'assignee_id' => ['nullable', 'integer', 'exists:users,id'],
+            'assignee_id' => ['nullable', 'integer', TenantRule::exists('users')],
         ]);
 
         $this->taskService->assign($task, $validated['assignee_id'], $request->user());

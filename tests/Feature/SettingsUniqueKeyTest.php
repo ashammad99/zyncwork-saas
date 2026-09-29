@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Core\Tenancy\TenantContext;
 use App\Features\Auth\Models\User;
+use App\Features\Tenancy\Models\Tenant;
 use App\Features\SystemSettings\Admin\Models\Setting;
 use App\Features\SystemSettings\Admin\Services\SettingsService;
 use Illuminate\Database\QueryException;
@@ -20,12 +22,35 @@ class SettingsUniqueKeyTest extends TestCase
         return require database_path('migrations/2026_09_23_000000_add_unique_setting_key_to_settings_table.php');
     }
 
+    private function tenantMigration(): object
+    {
+        return require database_path('migrations/2026_09_24_100002_scope_settings_unique_key_to_tenant.php');
+    }
+
     public function test_duplicate_setting_key_is_rejected(): void
     {
         Setting::create(['setting_key' => 'site_name', 'setting_value' => 'A']);
 
         $this->expectException(QueryException::class);
-        DB::table('settings')->insert(['setting_key' => 'site_name', 'setting_value' => 'B']);
+        DB::table('settings')->insert(['tenant_id' => $this->tenant->id, 'setting_key' => 'site_name', 'setting_value' => 'B']);
+    }
+
+    public function test_each_tenant_has_its_own_settings_and_cache(): void
+    {
+        $service = app(SettingsService::class);
+        $other = Tenant::create(['name' => 'Other']);
+
+        $service->update(['app.name' => 'Ours']);
+        $this->assertSame('Ours', Setting::get('app.name')); // warms our cache
+
+        app(TenantContext::class)->run($other->id, function () use ($service) {
+            $this->assertNull(Setting::get('app.name'));
+            $service->update(['app.name' => 'Theirs']);
+            $this->assertSame('Theirs', Setting::get('app.name'));
+        });
+
+        $this->assertSame('Ours', Setting::get('app.name'));
+        $this->assertSame(2, DB::table('settings')->where('setting_key', 'app.name')->count());
     }
 
     public function test_service_update_upserts_one_row_per_key_and_flushes_cache(): void
@@ -116,16 +141,21 @@ class SettingsUniqueKeyTest extends TestCase
 
     public function test_migration_keeps_newest_row_per_key(): void
     {
+        // Roll back to the pre-tenancy index, then replay the dedupe migration.
+        $tenantMigration = $this->tenantMigration();
+        $tenantMigration->down();
         $migration = $this->migration();
         $migration->down();
 
+        $t = $this->tenant->id;
         DB::table('settings')->insert([
-            ['setting_key' => 'site_name', 'setting_value' => 'old'],
-            ['setting_key' => 'timezone', 'setting_value' => 'UTC'],
-            ['setting_key' => 'site_name', 'setting_value' => 'new'],
+            ['tenant_id' => $t, 'setting_key' => 'site_name', 'setting_value' => 'old'],
+            ['tenant_id' => $t, 'setting_key' => 'timezone', 'setting_value' => 'UTC'],
+            ['tenant_id' => $t, 'setting_key' => 'site_name', 'setting_value' => 'new'],
         ]);
 
         $migration->up();
+        $tenantMigration->up();
 
         $this->assertSame(2, DB::table('settings')->count());
         $this->assertSame('new', DB::table('settings')->where('setting_key', 'site_name')->value('setting_value'));

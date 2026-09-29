@@ -5,9 +5,12 @@ namespace App\Features\Departments\Admin\Models;
 use App\Features\Auth\Models\User;
 use App\Features\Projects\Admin\Models\Project;
 use Illuminate\Database\Eloquent\Model;
+use App\Core\Tenancy\BelongsToTenant;
 
 class Department extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'manager_id',
         'name',

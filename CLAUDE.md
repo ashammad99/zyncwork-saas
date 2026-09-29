@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Zyncwork is an internal project-management app with three portals: **admin**, **manager**, and **employee**. It covers projects, tasks, time tracking and approval, comments and mentions, notifications, dashboards, and CSV/PDF time reports.
 
-Stack (from the lock files): PHP ^8.2, Laravel 12.56, inertia-laravel 3.0, @inertiajs/react 3.0, React 19.2 (plain `.jsx`, no TypeScript), Tailwind 4.2, Vite 7, Chart.js, lucide-react, and barryvdh/laravel-dompdf for PDFs. Dev and production use MySQL (`.env`). Tests use in-memory SQLite (`phpunit.xml`). There is no CI, no Docker, and no JS linter or test runner.
+Stack (from the lock files): PHP ^8.2, Laravel 12.56, inertia-laravel 3.0, @inertiajs/react 3.0, React 19.2 (plain `.jsx`, no TypeScript), Tailwind 4.2, Vite 7, Chart.js, lucide-react, and barryvdh/laravel-dompdf for PDFs. Dev and production use MySQL (`.env`, database `zyncwork_saas_db`). Tests also use MySQL, on a separate database, `zyncwork_saas_db_test`, set in `phpunit.xml` with `force="true"`. `tests/TestCase.php` refuses to boot against any other database, because `RefreshDatabase` drops every table. There is no CI, no Docker, and no JS linter or test runner.
 
 The project was scaffolded from the "Laravel FeatureKit" starter. `.agent/agent.md` (and the longer `DOCS.md`) documents the kit's shared React components, hooks (`@/Hooks`), utilities (`@/Utils`), `GeneralMail`, and Tailwind tokens. Read the relevant section before writing a new UI primitive, hook, helper, or mailable. One of the kit's layout examples there is outdated for this project; see Frontend below.
 
@@ -15,7 +15,7 @@ The project was scaffolded from the "Laravel FeatureKit" starter. `.agent/agent.
 ```bash
 composer dev                                  # serve + queue:listen + pail + vite together
 php artisan queue:work                        # needed if not using composer dev: notifications are queued
-composer test                                 # config:clear + full suite
+composer test                                 # config:clear + full suite (needs MySQL running and an existing zyncwork_saas_db_test)
 php artisan test --filter=ProjectTimelineTest # one class (or --filter=test_method_name)
 php artisan route:list --path=manager/projects  # check real URLs/names/middleware before touching routes
 npm run build                                 # writes public/build/ (tracked in git)
@@ -46,7 +46,13 @@ The seeder creates no departments. Managers without a `department_id` fail most 
 - Policies are auto-discovered only when they sit in the `Policies/` folder next to the model's `Models/` folder. Otherwise register them in `AppServiceProvider` (as is done for `Project` → `Projects/Manager/Policies/ProjectPolicy`).
 - **Manager scoping** means `$user->department_id` equals the resource's department (`project.department_id`, or `task.project.department_id`). `departments.manager_id` is a separate field, used only for deciding who receives notifications. Every manager-facing query and export must clamp to the manager's own department on the server, ignoring any `department_id` sent in the request (see `TimeLogExportController`).
 - The `verified` middleware is effectively a no-op: `User` does not implement `MustVerifyEmail`.
-- `is_active=false` is checked only at login (`LoginService`). No middleware ends a suspended user's existing session.
+- Suspension (`users.is_active=false`, or the user's tenant having `suspended_at` set) is checked at login (`LoginService`). `Core/Middleware/EnsureUserIsActive`, in the web group, also logs such a user out on their next request. It only checks tenant users (the `web` guard) and skips the platform host.
+- **Platform admins** (`Features/Platform`, `platform` guard, `platform_admins` table) sign in on `PLATFORM_DOMAIN` only, and TOTP is required (`PlatformTwoFactorService`, `RequirePlatformTwoFactor`). Accounts, capabilities, password resets and 2FA resets are managed only with `php artisan platform:admin`.
+  - `PLATFORM_DOMAIN` has no default. Production refuses to boot without it, and elsewhere the console isn't served when it's unset.
+  - **Platform sessions are rechecked on every request.** `RequirePlatformTwoFactor` signs an admin out once they are deactivated, their password changes (a fingerprint stored at sign-in), or their 2FA is reset. `EnforceImpersonation` ends a support session once its admin is deactivated or loses `impersonate`. `--reset-password` and `--reset-2fa` also end that admin's support sessions. A session with no fingerprint is signed out, so tests that act as a platform admin use `CrossesPlatformHost::actingAs`, which stores one.
+  - During a support session, `EnforceImpersonation` blocks the user-management routes (`USER_MANAGEMENT_ROUTES`) and the own-credential routes by route name. A new route that creates or changes users, roles or credentials must be added there.
+  - Five wrong TOTP or recovery codes lock an account's code step for 15 minutes, from any IP. A wrong code ends the pending sign-in.
+- **Rotating `APP_KEY` locks every platform admin out.** Their TOTP secrets (`platform_admins.two_factor_secret`) are encrypted with it and become unreadable. After a rotation, run `php artisan platform:admin <email> --reset-2fa` for each admin, and each re-enrolls at next sign-in. Rotation also invalidates all sessions and other encrypted values, so plan it.
 - Profile images are stored on the private `local` disk (`storage/app/private`) and served through `Profile/Shared/Controllers/ProfileImageController` (`/admin/profile-image/{f}` or `/user/profile-image/{f}`). Never move uploads to the public disk. Keep the `image|mimes|max` validation on uploads.
 
 ## Domain rules (enforced on the server; keep the frontend in sync)
@@ -68,7 +74,10 @@ The seeder creates no departments. Managers without a `department_id` fail most 
 ## Database & migrations
 
 - Never edit or delete an existing migration. Add a new one, and ask before any schema change, destructive migration, `migrate:fresh`, or `migrate:rollback` against a real database.
-- Migrations and queries must run on both MySQL (the app) and SQLite (tests). Prefer Eloquent or the query builder. One MySQL-only expression already exists (`FIELD()` in `EmployeeTaskService`); don't add more without a fallback.
+- The app and the tests both run on MySQL. Prefer Eloquent or the query builder over raw SQL. Some migrations and tests still contain SQLite workarounds from when the tests ran on SQLite; leave them alone.
+- Avoid MySQL-only SQL when a portable equivalent exists, even though nothing runs on SQLite any more. `EmployeeTaskService` once had to be rewritten to replace `FIELD()` with a `CASE` expression. If a query really needs MySQL-only SQL, say so in a comment and call it out in the change summary, so nobody adds one unnoticed.
+- Never point tests, `migrate:fresh`, or `migrate:rollback` at `zyncwork_saas_db`. Other projects' databases share the same local MySQL server.
+- MySQL silently drops the index it auto-created for a foreign key once another index can serve that key. A migration's `down()` that drops such an index must first restore a single-column index (see `enforce_same_tenant_links`).
 - Columns like `tasks.status`, `priority`, `impact`, `effort`, `projects.status`, and `time_logs.entry_type` are DB enums. Adding a value needs a migration plus model constants, validation rules, all transition maps, and frontend labels.
 - `ProjectFactory` and `UserFactory` exist, but `Project` doesn't use `HasFactory`. Tests build fixtures with `Model::create()`.
 
