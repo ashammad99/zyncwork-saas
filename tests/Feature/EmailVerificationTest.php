@@ -240,7 +240,7 @@ class EmailVerificationTest extends TestCase
     {
         $user = $this->makeUser('employee', verified: true);
         $sameTenant = $this->makeUser('employee', verified: true);
-        $otherTenant = \App\Features\Tenancy\Models\Tenant::create(['name' => 'Other Co']);
+        $otherTenant = Tenant::create(['name' => 'Other Co']);
         $elsewhere = app(TenantContext::class)->run($otherTenant->id, fn () => $this->makeUser('employee', verified: true));
 
         foreach ([$sameTenant->email, strtoupper($elsewhere->email)] as $taken) {

@@ -17,16 +17,13 @@ class ForgotPasswordService extends BaseService
 {
     /**
      * Send a reset link to the given user.
-     *
-     * @param string $email
-     * @return string
      */
     public function sendResetLink(string $email): string
     {
         // Guest request: no tenant yet. Emails are unique platform-wide.
         $user = User::withoutTenancy()->where('email', $email)->first();
 
-        if (!$user) {
+        if (! $user) {
             return Password::INVALID_USER;
         }
 
@@ -60,9 +57,6 @@ class ForgotPasswordService extends BaseService
 
     /**
      * Reset the given user's password.
-     *
-     * @param array $credentials
-     * @return string
      */
     public function resetPassword(array $credentials): string
     {
@@ -76,8 +70,7 @@ class ForgotPasswordService extends BaseService
                 $user->setRememberToken(Str::random(60));
 
                 // Guest request: log against the user's own tenant.
-                app(TenantContext::class)->run($user->tenant_id, fn () =>
-                    event(new ActivityLogged($user, 'password_reset', 'User password reset successfully.', 'security'))
+                app(TenantContext::class)->run($user->tenant_id, fn () => event(new ActivityLogged($user, 'password_reset', 'User password reset successfully.', 'security'))
                 );
             }
         );

@@ -20,7 +20,7 @@ class BurndownService extends BaseService
         }
 
         $start = Carbon::parse($project->created_at)->startOfDay();
-        $end   = Carbon::parse($project->deadline)->startOfDay();
+        $end = Carbon::parse($project->deadline)->startOfDay();
 
         if ($end->lte($start)) {
             return null;
@@ -35,16 +35,16 @@ class BurndownService extends BaseService
             ->groupBy('d')
             ->pluck('c', 'd');
 
-        $days      = (int) $start->diffInDays($end);
-        $today     = now()->startOfDay();
-        $labels    = [];
-        $ideal     = [];
-        $actual    = [];
+        $days = (int) $start->diffInDays($end);
+        $today = now()->startOfDay();
+        $labels = [];
+        $ideal = [];
+        $actual = [];
         $doneSoFar = 0;
 
         for ($i = 0; $i <= $days; $i++) {
             $date = $start->copy()->addDays($i);
-            $key  = $date->toDateString();
+            $key = $date->toDateString();
 
             $labels[] = $key;
 
@@ -54,19 +54,19 @@ class BurndownService extends BaseService
             // Actual: only for days up to today; future = null (line stops)
             if ($date->lte($today)) {
                 $doneSoFar += (int) ($completedByDate[$key] ?? 0);
-                $actual[]   = $totalTasks - $doneSoFar;
+                $actual[] = $totalTasks - $doneSoFar;
             } else {
                 $actual[] = null;
             }
         }
 
         return [
-            'labels'      => $labels,
-            'ideal'       => $ideal,
-            'actual'      => $actual,
+            'labels' => $labels,
+            'ideal' => $ideal,
+            'actual' => $actual,
             'total_tasks' => $totalTasks,
-            'completed'   => $doneSoFar,
-            'deadline'    => $end->toDateString(),
+            'completed' => $doneSoFar,
+            'deadline' => $end->toDateString(),
         ];
     }
 }

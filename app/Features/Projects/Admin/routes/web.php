@@ -13,5 +13,3 @@ Route::middleware(['auth', 'role:admin,manager'])
         Route::put('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
         Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
     });
-
-

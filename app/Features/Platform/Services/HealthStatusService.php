@@ -4,15 +4,13 @@ namespace App\Features\Platform\Services;
 
 use App\Core\BaseService;
 use App\Features\Tenancy\Models\Tenant;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class HealthStatusService extends BaseService
 {
     /**
      * Gather and return all system health metrics.
-     *
-     * @return array
      */
     public function getSystemMetrics(): array
     {
@@ -22,7 +20,7 @@ class HealthStatusService extends BaseService
             'php_version' => phpversion(),
             'environment' => env('APP_ENV', 'production'),
             'debug_mode' => env('APP_DEBUG', false) ? 'Enabled' : 'Disabled',
-            'server_os' => php_uname('s') . ' ' . php_uname('r'),
+            'server_os' => php_uname('s').' '.php_uname('r'),
             'database' => [
                 'connection' => env('DB_CONNECTION', 'mysql'),
                 'status' => $this->checkDatabaseConnection(),
@@ -49,6 +47,7 @@ class HealthStatusService extends BaseService
     {
         try {
             DB::connection()->getPdo();
+
             return 'Connected';
         } catch (\Exception $e) {
             return 'Error';
@@ -62,6 +61,7 @@ class HealthStatusService extends BaseService
     {
         try {
             Cache::store()->get('health_check');
+
             return 'Connected';
         } catch (\Exception $e) {
             return 'Error';

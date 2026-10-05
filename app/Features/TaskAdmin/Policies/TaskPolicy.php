@@ -2,8 +2,8 @@
 
 namespace App\Features\TaskAdmin\Policies;
 
-use App\Features\TaskAdmin\Models\Task;
 use App\Features\Auth\Models\User;
+use App\Features\TaskAdmin\Models\Task;
 
 class TaskPolicy
 {

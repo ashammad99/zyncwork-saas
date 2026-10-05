@@ -20,7 +20,7 @@ class TaskStatusSummaryTest extends TestCase
     {
         return User::create(array_merge([
             'name' => 'Test User',
-            'email' => uniqid('user_') . '@example.com',
+            'email' => uniqid('user_').'@example.com',
             'password' => Hash::make('password'),
             'role' => 'employee',
             'is_active' => true,
@@ -260,7 +260,7 @@ class TaskStatusSummaryTest extends TestCase
         $this->assertSame(
             count($small),
             count($big),
-            'Expected identical query counts for 3 tasks vs 30 tasks: ' . count($small) . ' vs ' . count($big)
+            'Expected identical query counts for 3 tasks vs 30 tasks: '.count($small).' vs '.count($big)
         );
         // Two aggregate queries total (one per helper) — proves neither loads task/time_log rows individually.
         $this->assertSame(2, count($small));

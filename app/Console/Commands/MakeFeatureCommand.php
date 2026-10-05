@@ -25,12 +25,12 @@ class MakeFeatureCommand extends Command
 
     public function handle(): void
     {
-        $name  = Str::studly($this->argument('name'));
+        $name = Str::studly($this->argument('name'));
         $roles = $this->option('roles');
         $roleArgs = $this->argument('roles');
 
         // If roles option is not provided, use roles from arguments
-        if (!$roles && !empty($roleArgs)) {
+        if (! $roles && ! empty($roleArgs)) {
             $roles = implode(',', $roleArgs);
         }
 
@@ -47,6 +47,7 @@ class MakeFeatureCommand extends Command
 
         if (File::isDirectory($basePath)) {
             $this->error("Feature [{$name}] already exists!");
+
             return;
         }
 
@@ -61,16 +62,17 @@ class MakeFeatureCommand extends Command
         File::put("{$basePath}/routes/api.php", $this->routeStub($name, 'api'));
 
         $this->info("✅ Simple feature [{$name}] created at app/Features/{$name}");
-        $this->table(['Folder'], array_map(fn($f) => [$f], $this->simpleFolders));
+        $this->table(['Folder'], array_map(fn ($f) => [$f], $this->simpleFolders));
     }
 
     private function createRoleBasedFeature(string $name, string $roles): void
     {
-        $basePath  = app_path("Features/{$name}");
-        $roleList  = array_map(fn($r) => Str::studly(trim($r)), explode(',', $roles));
+        $basePath = app_path("Features/{$name}");
+        $roleList = array_map(fn ($r) => Str::studly(trim($r)), explode(',', $roles));
 
         if (File::isDirectory($basePath)) {
             $this->error("Feature [{$name}] already exists!");
+
             return;
         }
 
@@ -94,7 +96,7 @@ class MakeFeatureCommand extends Command
             $this->info("  ✅ Role [{$role}] scaffolded");
         }
 
-        $this->info("✅ Role-based feature [{$name}] created with roles: " . implode(', ', $roleList));
+        $this->info("✅ Role-based feature [{$name}] created with roles: ".implode(', ', $roleList));
     }
 
     private function routeStub(string $name, string $type): string

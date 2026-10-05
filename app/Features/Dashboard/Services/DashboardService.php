@@ -3,8 +3,8 @@
 namespace App\Features\Dashboard\Services;
 
 use App\Core\BaseService;
-use App\Features\Auth\Models\User;
 use App\Features\ActivityLog\Models\ActivityLog;
+use App\Features\Auth\Models\User;
 use App\Features\Projects\Admin\Models\Project;
 use App\Features\TaskAdmin\Models\Task;
 use App\Features\TimeLog\Models\TimeLog;
@@ -60,21 +60,21 @@ class DashboardService extends BaseService
             : collect();
 
         $loggedHoursWeek = $manager
-            ? \App\Features\TimeLog\Models\TimeLog::whereIn('task_id', $taskIds)
+            ? TimeLog::whereIn('task_id', $taskIds)
                 ->whereBetween('started_at', [now()->startOfWeek(), now()->endOfWeek()])
                 ->whereNotNull('duration_minutes')
                 ->sum('duration_minutes') / 60
             : 0;
 
         return [
-            'active_projects'    => Project::where('department_id', $manager?->department_id)
+            'active_projects' => Project::where('department_id', $manager?->department_id)
                 ->where('status', 'active')
                 ->count(),
-            'open_tasks'         => Task::whereIn('project_id', $projectIds)
+            'open_tasks' => Task::whereIn('project_id', $projectIds)
                 ->whereNotIn('status', ['completed'])
                 ->count(),
-            'logged_hours_week'  => round($loggedHoursWeek, 1),
-            'team_members'       => User::where('department_id', $manager?->department_id)
+            'logged_hours_week' => round($loggedHoursWeek, 1),
+            'team_members' => User::where('department_id', $manager?->department_id)
                 ->where('role', 'employee')
                 ->count(),
             'task_status_summary' => $this->buildTaskStatusSummary(Task::whereIn('project_id', $projectIds)),
@@ -111,7 +111,7 @@ class DashboardService extends BaseService
         $fields = ['name', 'email', 'phone', 'profile_image'];
         $filled = 0;
         foreach ($fields as $field) {
-            if (!empty($user->{$field})) {
+            if (! empty($user->{$field})) {
                 $filled++;
             }
         }
@@ -157,6 +157,7 @@ class DashboardService extends BaseService
             ->take($limit)
             ->get();
     }
+
     public function getEmployeeMetrics(User $user): array
     {
         $today = now()->toDateString();
@@ -198,6 +199,7 @@ class DashboardService extends BaseService
             ->limit($limit)
             ->get(['id', 'action', 'model_type', 'created_at']);
     }
+
     /**
      * Per-employee capacity utilization for the manager's department.
      * PRD §4.4: SUM(estimated_hours) of tasks due today vs daily_capacity_hours.
@@ -221,20 +223,20 @@ class DashboardService extends BaseService
         return $members->map(function ($member) use ($assignedToday) {
             $assigned = (float) ($assignedToday[$member->id] ?? 0);
             $capacity = (int) $member->daily_capacity_hours ?: 8;
-            $pct      = $capacity > 0 ? round(($assigned / $capacity) * 100) : 0;
+            $pct = $capacity > 0 ? round(($assigned / $capacity) * 100) : 0;
 
             return [
-                'id'             => $member->id,
-                'name'           => $member->name,
-                'profile_image'  => $member->profile_image,
+                'id' => $member->id,
+                'name' => $member->name,
+                'profile_image' => $member->profile_image,
                 'assigned_hours' => round($assigned, 1),
                 'capacity_hours' => $capacity,
-                'utilization'    => $pct,
-                'status'         => match (true) {
+                'utilization' => $pct,
+                'status' => match (true) {
                     $pct > 120 => 'overloaded',
                     $pct > 100 => 'near_limit',
                     $pct >= 60 => 'on_track',
-                    default    => 'under',
+                    default => 'under',
                 },
             ];
         })

@@ -13,6 +13,7 @@ class LandingController extends BaseController
         if ($request->header('X-Inertia')) {
             return Inertia::location('/');
         }
+
         return view('pages.home.page');
     }
 
@@ -21,6 +22,7 @@ class LandingController extends BaseController
         if ($request->header('X-Inertia')) {
             return Inertia::location(route('landing.docs'));
         }
+
         return view('pages.documentation.page');
     }
 
@@ -29,6 +31,7 @@ class LandingController extends BaseController
         if ($request->header('X-Inertia')) {
             return Inertia::location(route('landing.features'));
         }
+
         return view('pages.features.page');
     }
 }

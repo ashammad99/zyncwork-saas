@@ -4,7 +4,6 @@ namespace App\Features\Projects\Manager\Policies;
 
 use App\Features\Auth\Models\User;
 use App\Features\Projects\Admin\Models\Project;
-
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class ProjectPolicy

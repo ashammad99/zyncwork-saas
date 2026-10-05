@@ -3,12 +3,10 @@
 namespace App\Features\Profile\Admin\Controllers;
 
 use App\Core\BaseController;
-
-use Inertia\Inertia;
-use App\Features\Profile\Admin\Services\ProfileService;
-use App\Features\Profile\Admin\Requests\UpdateProfileRequest;
 use App\Features\Profile\Admin\Requests\UpdatePasswordRequest;
-use App\Features\Profile\Admin\Models\User;
+use App\Features\Profile\Admin\Requests\UpdateProfileRequest;
+use App\Features\Profile\Admin\Services\ProfileService;
+use Inertia\Inertia;
 
 class ProfileController extends BaseController
 {

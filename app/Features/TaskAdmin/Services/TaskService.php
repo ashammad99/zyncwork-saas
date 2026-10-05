@@ -5,29 +5,31 @@ namespace App\Features\TaskAdmin\Services;
 use App\Core\BaseService;
 use App\Features\ActivityLog\Models\ActivityLog;
 use App\Features\Auth\Models\User;
+use App\Features\Notification\Services\TaskNotifierService;
 use App\Features\TaskAdmin\Models\Task;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use App\Features\Notification\Services\TaskNotifierService;
+
 class TaskService extends BaseService
 {
     public function __construct(
         private readonly TaskNotifierService $notifier,
     ) {}
+
     // ── Valid transitions ──────────────────────────────────────────────────
     private const TRANSITIONS = [
-        Task::STATUS_BACKLOG     => [Task::STATUS_TODO],
-        Task::STATUS_TODO        => [Task::STATUS_IN_PROGRESS],
+        Task::STATUS_BACKLOG => [Task::STATUS_TODO],
+        Task::STATUS_TODO => [Task::STATUS_IN_PROGRESS],
         Task::STATUS_IN_PROGRESS => [Task::STATUS_IN_REVIEW],
-        Task::STATUS_IN_REVIEW   => [Task::STATUS_COMPLETED, Task::STATUS_IN_PROGRESS],
-        Task::STATUS_COMPLETED   => [Task::STATUS_TODO], // reactivate only
+        Task::STATUS_IN_REVIEW => [Task::STATUS_COMPLETED, Task::STATUS_IN_PROGRESS],
+        Task::STATUS_COMPLETED => [Task::STATUS_TODO], // reactivate only
     ];
 
     // Transitions only managers/admins can trigger
     private const MANAGER_ONLY_TRANSITIONS = [
-        Task::STATUS_IN_REVIEW   . '->' . Task::STATUS_COMPLETED,
-        Task::STATUS_IN_REVIEW   . '->' . Task::STATUS_IN_PROGRESS,
-        Task::STATUS_COMPLETED   . '->' . Task::STATUS_TODO,
+        Task::STATUS_IN_REVIEW.'->'.Task::STATUS_COMPLETED,
+        Task::STATUS_IN_REVIEW.'->'.Task::STATUS_IN_PROGRESS,
+        Task::STATUS_COMPLETED.'->'.Task::STATUS_TODO,
     ];
 
     // ── Create ─────────────────────────────────────────────────────────────
@@ -136,6 +138,7 @@ class TaskService extends BaseService
             return $task->fresh();
         });
     }
+
     // ── Assign ─────────────────────────────────────────────────────────────
     public function assign(Task $task, ?int $assigneeId, User $actor): Task
     {
@@ -149,6 +152,7 @@ class TaskService extends BaseService
 
         return $task->fresh(['assignee']);
     }
+
     // ── Private helpers ────────────────────────────────────────────────────
     private function pushDependentsBackToTodo(Task $task, User $actor): void
     {
@@ -188,19 +192,19 @@ class TaskService extends BaseService
             }
 
             $visited[] = $current;
-            $current   = Task::find($current)?->depends_on_task_id;
+            $current = Task::find($current)?->depends_on_task_id;
         }
     }
 
     private function logActivity(User $actor, string $action, Task $task, ?array $old, ?array $new): void
     {
         ActivityLog::create([
-            'user_id'    => $actor->id,
-            'action'     => $action,
+            'user_id' => $actor->id,
+            'action' => $action,
             'model_type' => Task::class,
-            'model_id'   => $task->id,
-            'old_value'  => $old,
-            'new_value'  => $new,
+            'model_id' => $task->id,
+            'old_value' => $old,
+            'new_value' => $new,
             'ip_address' => request()->ip(),
         ]);
     }

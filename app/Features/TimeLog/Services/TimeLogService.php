@@ -5,29 +5,31 @@ namespace App\Features\TimeLog\Services;
 use App\Core\BaseService;
 use App\Features\Auth\Models\User;
 use App\Features\Departments\Admin\Models\Department;
+use App\Features\Projects\Admin\Models\Project;
 use App\Features\TaskAdmin\Models\Task;
 use App\Features\TimeLog\Models\TimeLog;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Carbon;
-use App\Features\Projects\Admin\Models\Project;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Facades\DB;
 
 class TimeLogService extends BaseService
-{ /**
- * Start a timer for a user on a given task.
- * Enforces "one active timer per user" — auto-stops any running timer first.
- */
+{
+    /**
+     * Start a timer for a user on a given task.
+     * Enforces "one active timer per user" — auto-stops any running timer first.
+     */
     public function start(User $user, Task $task): TimeLog
     {
         return DB::transaction(function () use ($user, $task) {
             $this->stopActiveIfAny($user);
 
             return TimeLog::create([
-                'task_id'    => $task->id,
-                'user_id'    => $user->id,
+                'task_id' => $task->id,
+                'user_id' => $user->id,
                 'started_at' => now(),
-                'ended_at'   => null,
+                'ended_at' => null,
                 'entry_type' => TimeLog::TYPE_TIMER,
             ]);
         });
@@ -102,21 +104,22 @@ class TimeLogService extends BaseService
      */
     protected function finalize(TimeLog $timer): TimeLog
     {
-        $endedAt  = Carbon::now();
+        $endedAt = Carbon::now();
         $duration = (int) $timer->started_at->diffInMinutes($endedAt);
 
         $timer->update([
-            'ended_at'         => $endedAt,
+            'ended_at' => $endedAt,
             'duration_minutes' => $duration,
         ]);
 
         return $timer->fresh();
     }
-    public function getWeekLogs(\App\Features\Auth\Models\User $user, \Illuminate\Support\Carbon $weekStart): \Illuminate\Database\Eloquent\Collection
+
+    public function getWeekLogs(User $user, Carbon $weekStart): Collection
     {
         $weekEnd = $weekStart->copy()->endOfWeek();
 
-        return \App\Features\TimeLog\Models\TimeLog::query()
+        return TimeLog::query()
             ->forUser($user->id)
             ->between($weekStart, $weekEnd)
             ->with([
@@ -127,6 +130,7 @@ class TimeLogService extends BaseService
             ->orderBy('started_at', 'desc')
             ->get();
     }
+
     /**
      * Create a manual time entry.
      * Combines date + HH:MM time strings into full datetimes.
@@ -137,13 +141,13 @@ class TimeLogService extends BaseService
         [$startedAt, $endedAt, $duration] = $this->resolveTimes($data);
 
         return TimeLog::create([
-            'task_id'          => $task->id,
-            'user_id'          => $user->id,
-            'started_at'       => $startedAt,
-            'ended_at'         => $endedAt,
+            'task_id' => $task->id,
+            'user_id' => $user->id,
+            'started_at' => $startedAt,
+            'ended_at' => $endedAt,
             'duration_minutes' => $duration,
-            'entry_type'       => TimeLog::TYPE_MANUAL,
-            'notes'            => $data['notes'] ?? null,
+            'entry_type' => TimeLog::TYPE_MANUAL,
+            'notes' => $data['notes'] ?? null,
         ]);
     }
 
@@ -156,11 +160,11 @@ class TimeLogService extends BaseService
         [$startedAt, $endedAt, $duration] = $this->resolveTimes($data);
 
         $log->update([
-            'task_id'          => $data['task_id'] ?? $log->task_id,
-            'started_at'       => $startedAt,
-            'ended_at'         => $endedAt,
+            'task_id' => $data['task_id'] ?? $log->task_id,
+            'started_at' => $startedAt,
+            'ended_at' => $endedAt,
             'duration_minutes' => $duration,
-            'notes'            => $data['notes'] ?? null,
+            'notes' => $data['notes'] ?? null,
         ]);
 
         return $log->fresh();
@@ -206,8 +210,8 @@ class TimeLogService extends BaseService
     protected function resolveTimes(array $data): array
     {
         $startedAt = Carbon::parse("{$data['date']} {$data['started_at']}");
-        $endedAt   = Carbon::parse("{$data['date']} {$data['ended_at']}");
-        $duration  = (int) $startedAt->diffInMinutes($endedAt);
+        $endedAt = Carbon::parse("{$data['date']} {$data['ended_at']}");
+        $duration = (int) $startedAt->diffInMinutes($endedAt);
 
         return [$startedAt, $endedAt, $duration];
     }
@@ -229,29 +233,23 @@ class TimeLogService extends BaseService
                 'task.project:id,name,department_id',
                 'approvedBy:id,name',
             ])
-            ->when($filters['user_id'] ?? null, fn ($q, $v) =>
-            $q->where('user_id', $v)
+            ->when($filters['user_id'] ?? null, fn ($q, $v) => $q->where('user_id', $v)
             )
-            ->when($filters['project_id'] ?? null, fn ($q, $v) =>
-            $q->whereHas('task', fn ($t) => $t->where('project_id', $v))
+            ->when($filters['project_id'] ?? null, fn ($q, $v) => $q->whereHas('task', fn ($t) => $t->where('project_id', $v))
             )
-            ->when($filters['department_id'] ?? null, fn ($q, $v) =>
-            $q->whereHas('task.project', fn ($p) => $p->where('department_id', $v))
+            ->when($filters['department_id'] ?? null, fn ($q, $v) => $q->whereHas('task.project', fn ($p) => $p->where('department_id', $v))
             )
-            ->when($filters['entry_type'] ?? null, fn ($q, $v) =>
-            $q->where('entry_type', $v)
+            ->when($filters['entry_type'] ?? null, fn ($q, $v) => $q->where('entry_type', $v)
             )
             ->when($filters['approval'] ?? null, fn ($q, $v) => match ($v) {
                 'approved' => $q->whereNotNull('approved_by'),
-                'pending'  => $q->whereNull('approved_by')->whereNotNull('ended_at'),
-                'running'  => $q->whereNull('ended_at'),
-                default    => $q,
+                'pending' => $q->whereNull('approved_by')->whereNotNull('ended_at'),
+                'running' => $q->whereNull('ended_at'),
+                default => $q,
             })
-            ->when($filters['date_from'] ?? null, fn ($q, $v) =>
-            $q->whereDate('started_at', '>=', $v)
+            ->when($filters['date_from'] ?? null, fn ($q, $v) => $q->whereDate('started_at', '>=', $v)
             )
-            ->when($filters['date_to'] ?? null, fn ($q, $v) =>
-            $q->whereDate('started_at', '<=', $v)
+            ->when($filters['date_to'] ?? null, fn ($q, $v) => $q->whereDate('started_at', '<=', $v)
             )
             ->orderBy('started_at', 'desc')
             ->paginate(25)
@@ -294,13 +292,13 @@ class TimeLogService extends BaseService
 
                 return [
                     'user' => [
-                        'id'         => $user->id,
-                        'name'       => $user->name,
+                        'id' => $user->id,
+                        'name' => $user->name,
                         'department' => $user->department?->name,
                     ],
                     'total_minutes' => (int) $logs->sum('duration_minutes'),
-                    'entry_count'   => $logs->count(),
-                    'logs'          => $logs->values(),
+                    'entry_count' => $logs->count(),
+                    'logs' => $logs->values(),
                 ];
             })
             ->values();
@@ -329,31 +327,31 @@ class TimeLogService extends BaseService
         return [
             'range' => [
                 'from' => $start->toDateString(),
-                'to'   => $end->toDateString(),
+                'to' => $end->toDateString(),
             ],
             'totals' => [
-                'total_minutes'    => (int) $logs->sum('duration_minutes'),
+                'total_minutes' => (int) $logs->sum('duration_minutes'),
                 'approved_minutes' => (int) $logs->whereNotNull('approved_by')->sum('duration_minutes'),
-                'pending_minutes'  => (int) $logs->whereNull('approved_by')->sum('duration_minutes'),
-                'entry_count'      => $logs->count(),
-                'timer_count'      => $logs->where('entry_type', TimeLog::TYPE_TIMER)->count(),
-                'manual_count'     => $logs->where('entry_type', TimeLog::TYPE_MANUAL)->count(),
+                'pending_minutes' => (int) $logs->whereNull('approved_by')->sum('duration_minutes'),
+                'entry_count' => $logs->count(),
+                'timer_count' => $logs->where('entry_type', TimeLog::TYPE_TIMER)->count(),
+                'manual_count' => $logs->where('entry_type', TimeLog::TYPE_MANUAL)->count(),
             ],
             'by_user' => $logs->groupBy('user_id')->map(fn ($g) => [
-                'name'          => $g->first()->user?->name,
-                'department'    => $g->first()->user?->department?->name,
+                'name' => $g->first()->user?->name,
+                'department' => $g->first()->user?->department?->name,
                 'total_minutes' => (int) $g->sum('duration_minutes'),
-                'entry_count'   => $g->count(),
+                'entry_count' => $g->count(),
             ])->sortByDesc('total_minutes')->values(),
             'by_project' => $logs->groupBy(fn ($l) => $l->task?->project_id)->map(fn ($g) => [
-                'name'          => $g->first()->task?->project?->name,
+                'name' => $g->first()->task?->project?->name,
                 'total_minutes' => (int) $g->sum('duration_minutes'),
-                'entry_count'   => $g->count(),
+                'entry_count' => $g->count(),
             ])->sortByDesc('total_minutes')->values(),
             'by_department' => $logs->groupBy(fn ($l) => $l->task?->project?->department_id)->map(fn ($g) => [
-                'name'          => $g->first()->task?->project?->department?->name,
+                'name' => $g->first()->task?->project?->department?->name,
                 'total_minutes' => (int) $g->sum('duration_minutes'),
-                'entry_count'   => $g->count(),
+                'entry_count' => $g->count(),
             ])->sortByDesc('total_minutes')->values(),
         ];
     }

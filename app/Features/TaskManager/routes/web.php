@@ -8,13 +8,13 @@ Route::middleware(['auth', 'role:manager'])
     ->name('manager.tasks.')
     ->group(function () {
 
-        Route::get('/',            [ManagerTaskController::class, 'index'])->name('index');
-        Route::get('/create',      [ManagerTaskController::class, 'create'])->name('create');
-        Route::post('/',           [ManagerTaskController::class, 'store'])->name('store');
-        Route::get('/{task}',      [ManagerTaskController::class, 'show'])->name('show');
+        Route::get('/', [ManagerTaskController::class, 'index'])->name('index');
+        Route::get('/create', [ManagerTaskController::class, 'create'])->name('create');
+        Route::post('/', [ManagerTaskController::class, 'store'])->name('store');
+        Route::get('/{task}', [ManagerTaskController::class, 'show'])->name('show');
         Route::get('/{task}/edit', [ManagerTaskController::class, 'edit'])->name('edit');
-        Route::put('/{task}',      [ManagerTaskController::class, 'update'])->name('update');
-        Route::delete('/{task}',   [ManagerTaskController::class, 'destroy'])->name('destroy');
+        Route::put('/{task}', [ManagerTaskController::class, 'update'])->name('update');
+        Route::delete('/{task}', [ManagerTaskController::class, 'destroy'])->name('destroy');
 
         // Status transition — separate endpoint for clarity
         Route::patch('/{task}/status', [ManagerTaskController::class, 'updateStatus'])->name('updateStatus');

@@ -1,7 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\Features\Report\Controllers\BurndownController;
+use Illuminate\Support\Facades\Route;
 
 // Report web routes
 Route::middleware(['auth', 'role:admin,manager'])->group(function () {

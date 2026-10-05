@@ -9,9 +9,11 @@ use App\Features\Platform\Models\PlatformAuditLog;
 use App\Providers\AppServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\RouteCollection;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia;
 use LogicException;
+use PragmaRX\Google2FA\Google2FA;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -61,7 +63,7 @@ class PlatformConsoleTest extends TestCase
             ->assertRedirect(route('platform.two-factor.challenge'));
         $this->assertGuest('platform');
 
-        $this->post($this->platform('/two-factor'), ['code' => app(\PragmaRX\Google2FA\Google2FA::class)->getCurrentOtp($this->secret)])
+        $this->post($this->platform('/two-factor'), ['code' => app(Google2FA::class)->getCurrentOtp($this->secret)])
             ->assertRedirect(route('platform.tenants.index'));
 
         $this->assertAuthenticatedAs($admin, 'platform');
@@ -325,7 +327,7 @@ class PlatformConsoleTest extends TestCase
         $user = $this->makeUser('admin');
 
         foreach (PlatformAdmin::CAPABILITIES as $capability) {
-            $this->assertFalse(\Illuminate\Support\Facades\Gate::forUser($user)->allows("platform.{$capability}"));
+            $this->assertFalse(Gate::forUser($user)->allows("platform.{$capability}"));
         }
     }
 }

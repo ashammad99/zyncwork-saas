@@ -22,6 +22,7 @@ class LoginController extends BaseController
                 return Inertia::location(route('dashboard'));
             }
         }
+
         return view('pages.auth.login.page', [
             'app_name' => config('app.name'),
             'app_description' => config('app.description'),

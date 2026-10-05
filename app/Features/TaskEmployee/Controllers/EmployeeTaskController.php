@@ -3,6 +3,8 @@
 namespace App\Features\TaskEmployee\Controllers;
 
 use App\Core\BaseController;
+use App\Features\Auth\Models\User;
+use App\Features\Comment\Services\CommentService;
 use App\Features\TaskAdmin\Models\Task;
 use App\Features\TaskEmployee\Requests\UpdateTaskStatusRequest;
 use App\Features\TaskEmployee\Services\EmployeeTaskService;
@@ -10,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+
 class EmployeeTaskController extends BaseController
 {
     public function __construct(
@@ -25,14 +28,14 @@ class EmployeeTaskController extends BaseController
             'search', 'status', 'priority', 'project_id', 'due',
         ]);
 
-        $tasks   = $this->taskService->getAssignedTasks($employee, $filters);
+        $tasks = $this->taskService->getAssignedTasks($employee, $filters);
         $options = $this->taskService->getFilterOptions($employee);
 
         return Inertia::render('(portals)/employee/tasks/Index', [
-            'tasks'      => $tasks,
-            'filters'    => $filters,
-            'projects'   => $options['projects'],
-            'statuses'   => $options['statuses'],
+            'tasks' => $tasks,
+            'filters' => $filters,
+            'projects' => $options['projects'],
+            'statuses' => $options['statuses'],
             'priorities' => $options['priorities'],
         ]);
     }
@@ -45,11 +48,11 @@ class EmployeeTaskController extends BaseController
         $task = $this->taskService->getTaskDetail($task);
 
         return Inertia::render('(portals)/employee/tasks/Show', [
-            'task'          => $task,
-            'currentUser'   => auth()->user(),
-            'comments'      => app(\App\Features\Comment\Services\CommentService::class)
+            'task' => $task,
+            'currentUser' => auth()->user(),
+            'comments' => app(CommentService::class)
                 ->getThreadForTask($task),
-            'mentionableUsers' => \App\Features\Auth\Models\User::query()
+            'mentionableUsers' => User::query()
                 ->where('is_active', true)
                 ->where('id', '!=', auth()->id())
                 ->where(function ($q) use ($task) {
@@ -59,9 +62,9 @@ class EmployeeTaskController extends BaseController
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'canTransition' => [
-                'to_todo'        => $task->status === Task::STATUS_BACKLOG,
+                'to_todo' => $task->status === Task::STATUS_BACKLOG,
                 'to_in_progress' => $task->status === Task::STATUS_TODO,
-                'to_in_review'   => $task->status === Task::STATUS_IN_PROGRESS,
+                'to_in_review' => $task->status === Task::STATUS_IN_PROGRESS,
             ],
         ]);
     }

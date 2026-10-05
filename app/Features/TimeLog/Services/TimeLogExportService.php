@@ -4,6 +4,7 @@ namespace App\Features\TimeLog\Services;
 
 use App\Core\BaseService;
 use App\Features\TimeLog\Models\TimeLog;
+use Barryvdh\DomPDF\PDF;
 use Illuminate\Database\Eloquent\Builder;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -17,7 +18,7 @@ class TimeLogExportService extends BaseService
     {
         $query = $this->buildQuery($filters, $departmentScope);
 
-        $filename = 'time-logs_' . now()->format('Y-m-d_His') . '.csv';
+        $filename = 'time-logs_'.now()->format('Y-m-d_His').'.csv';
 
         return response()->streamDownload(function () use ($query) {
             $out = fopen('php://output', 'w');
@@ -69,23 +70,22 @@ class TimeLogExportService extends BaseService
                 'task.project.department:id,name',
                 'approvedBy:id,name',
             ])
-            ->when($departmentScope, fn ($q, $deptId) =>
-            $q->whereHas('task.project', fn ($p) => $p->where('department_id', $deptId))
+            ->when($departmentScope, fn ($q, $deptId) => $q->whereHas('task.project', fn ($p) => $p->where('department_id', $deptId))
             )
             ->when($filters['user_id'] ?? null, fn ($q, $v) => $q->where('user_id', $v))
-            ->when($filters['department_id'] ?? null, fn ($q, $v) =>
-            $q->whereHas('task.project', fn ($p) => $p->where('department_id', $v))
+            ->when($filters['department_id'] ?? null, fn ($q, $v) => $q->whereHas('task.project', fn ($p) => $p->where('department_id', $v))
             )
             ->when($filters['entry_type'] ?? null, fn ($q, $v) => $q->where('entry_type', $v))
             ->when($filters['approval'] ?? null, fn ($q, $v) => match ($v) {
                 'approved' => $q->whereNotNull('approved_by'),
-                'pending'  => $q->whereNull('approved_by'),
-                default    => $q,
+                'pending' => $q->whereNull('approved_by'),
+                default => $q,
             })
             ->when($filters['date_from'] ?? null, fn ($q, $v) => $q->whereDate('started_at', '>=', $v))
             ->when($filters['date_to'] ?? null, fn ($q, $v) => $q->whereDate('started_at', '<=', $v))
             ->orderBy('started_at');
     }
+
     public function adminPdf(Request $request)
     {
         $filters = $request->only([
@@ -94,7 +94,7 @@ class TimeLogExportService extends BaseService
         ]);
 
         return $this->exportService->makePdf($filters)
-            ->download('time-logs_' . now()->format('Y-m-d') . '.pdf');
+            ->download('time-logs_'.now()->format('Y-m-d').'.pdf');
     }
 
     public function managerPdf(Request $request)
@@ -102,12 +102,13 @@ class TimeLogExportService extends BaseService
         $filters = $request->only(['user_id', 'entry_type', 'approval', 'date_from', 'date_to']);
 
         return $this->exportService->makePdf($filters, $request->user()->department_id)
-            ->download('time-logs_' . now()->format('Y-m-d') . '.pdf');
+            ->download('time-logs_'.now()->format('Y-m-d').'.pdf');
     }
+
     /**
      * Build the PDF. Enforces a date range (PRD: no unbounded exports).
      */
-    public function makePdf(array $filters, ?int $departmentScope = null): \Barryvdh\DomPDF\PDF
+    public function makePdf(array $filters, ?int $departmentScope = null): PDF
     {
         abort_unless(
             ($filters['date_from'] ?? null) && ($filters['date_to'] ?? null),
@@ -118,11 +119,11 @@ class TimeLogExportService extends BaseService
         $logs = $this->buildQuery($filters, $departmentScope)->get();
 
         return \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.time-logs-pdf', [
-            'logs'           => $logs,
-            'dateFrom'       => $filters['date_from'],
-            'dateTo'         => $filters['date_to'],
+            'logs' => $logs,
+            'dateFrom' => $filters['date_from'],
+            'dateTo' => $filters['date_to'],
             'departmentName' => null,
-            'generatedBy'    => auth()->user()->name,
+            'generatedBy' => auth()->user()->name,
         ])->setPaper('a4', 'landscape');
     }
 }

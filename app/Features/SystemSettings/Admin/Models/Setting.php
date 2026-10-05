@@ -2,10 +2,10 @@
 
 namespace App\Features\SystemSettings\Admin\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Cache;
 use App\Core\Tenancy\BelongsToTenant;
 use App\Core\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
@@ -26,7 +26,7 @@ class Setting extends Model
 
     public static function cacheKey(?int $tenantId = null): string
     {
-        return self::CACHE_PREFIX . ($tenantId ?? app(TenantContext::class)->idOrFail());
+        return self::CACHE_PREFIX.($tenantId ?? app(TenantContext::class)->idOrFail());
     }
 
     public static function allKeyed(): array

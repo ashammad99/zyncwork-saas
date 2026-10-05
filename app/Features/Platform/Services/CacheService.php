@@ -16,8 +16,6 @@ class CacheService extends BaseService
     /**
      * Clear caches based on type and log the activity.
      *
-     * @param string $type
-     * @return string
      * @throws \Exception
      */
     public function clearCaches(string $type, PlatformAdmin $admin): string

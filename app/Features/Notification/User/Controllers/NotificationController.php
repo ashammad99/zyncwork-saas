@@ -41,9 +41,9 @@ class NotificationController extends BaseController
     protected function portalPage(string $suffix): string
     {
         $portal = match (Auth::user()->role) {
-            'manager'  => 'manager',
+            'manager' => 'manager',
             'employee' => 'employee',
-            default    => 'user',
+            default => 'user',
         };
 
         return "(portals)/{$portal}/{$suffix}";

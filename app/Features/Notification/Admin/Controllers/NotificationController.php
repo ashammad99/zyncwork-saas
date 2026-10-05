@@ -18,6 +18,7 @@ class NotificationController extends BaseController
     public function readAll()
     {
         Notification::where('user_id', Auth::id())->update(['read_at' => now()]);
+
         return redirect()->route('admin.notifications.index');
     }
 
@@ -27,6 +28,7 @@ class NotificationController extends BaseController
         if ($notification) {
             $notification->update(['read_at' => now()]);
         }
+
         return inertia('(portals)/admin/notification/[id]/page', [
             'notification' => $notification,
         ]);

@@ -7,27 +7,26 @@ use App\Features\Auth\Models\User;
 use App\Features\Comment\Models\Comment;
 use App\Features\Notification\Events\NotificationCreated;
 use App\Features\TaskAdmin\Models\Task;
+use Illuminate\Database\Eloquent\Collection;
 
 class CommentService extends BaseService
 {
-
-
     // ─── Store ────────────────────────────────────────────────────────────────
 
     public function store(Task $task, array $data, User $actor): Comment
     {
         /** @var Comment $comment */
         $comment = $task->comments()->create([
-            'user_id'   => $actor->id,
+            'user_id' => $actor->id,
             'parent_id' => $data['parent_id'] ?? null,
-            'body'      => $data['body'],
+            'body' => $data['body'],
         ]);
-//
-//        $this->activityLog->log(
-//            actor: $actor,
-//            action: 'created_comment',
-//            model: $comment,
-//        );
+        //
+        //        $this->activityLog->log(
+        //            actor: $actor,
+        //            action: 'created_comment',
+        //            model: $comment,
+        //        );
 
         $this->dispatchMentionNotifications($comment, $actor);
 
@@ -41,17 +40,17 @@ class CommentService extends BaseService
         $oldBody = $comment->body;
 
         $comment->update([
-            'body'      => $data['body'],
+            'body' => $data['body'],
             'edited_at' => now(),
         ]);
 
-//        $this->activityLog->log(
-//            actor: $actor,
-//            action: 'updated_comment',
-//            model: $comment,
-//            oldValue: ['body' => $oldBody],
-//            newValue: ['body' => $data['body']],
-//        );
+        //        $this->activityLog->log(
+        //            actor: $actor,
+        //            action: 'updated_comment',
+        //            model: $comment,
+        //            oldValue: ['body' => $oldBody],
+        //            newValue: ['body' => $data['body']],
+        //        );
 
         $this->dispatchMentionNotifications($comment, $actor);
 
@@ -62,12 +61,12 @@ class CommentService extends BaseService
 
     public function destroy(Comment $comment, User $actor): void
     {
-//        $this->activityLog->log(
-//            actor: $actor,
-//            action: 'deleted_comment',
-//            model: $comment,
-//            oldValue: ['body' => $comment->body],
-//        );
+        //        $this->activityLog->log(
+        //            actor: $actor,
+        //            action: 'deleted_comment',
+        //            model: $comment,
+        //            oldValue: ['body' => $comment->body],
+        //        );
 
         $comment->delete();
     }
@@ -77,7 +76,7 @@ class CommentService extends BaseService
     /**
      * Returns top-level comments with nested replies (2 levels deep is sufficient for M2).
      */
-    public function getThreadForTask(Task $task): \Illuminate\Database\Eloquent\Collection
+    public function getThreadForTask(Task $task): Collection
     {
         return $task->comments()
             ->with([

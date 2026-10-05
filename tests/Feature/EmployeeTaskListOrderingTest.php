@@ -18,7 +18,7 @@ class EmployeeTaskListOrderingTest extends TestCase
     {
         return User::create(array_merge([
             'name' => 'Test User',
-            'email' => uniqid('user_') . '@example.com',
+            'email' => uniqid('user_').'@example.com',
             'password' => Hash::make('password'),
             'role' => 'employee',
             'is_active' => true,
@@ -38,7 +38,7 @@ class EmployeeTaskListOrderingTest extends TestCase
             'status' => 'active',
         ]);
 
-        $make = fn (string $title, ?string $status, ?string $priority, User $assignee = null) => Task::create([
+        $make = fn (string $title, ?string $status, ?string $priority, ?User $assignee = null) => Task::create([
             'project_id' => $project->id,
             'created_by' => $manager->id,
             'assignee_id' => ($assignee ?? $employee)->id,
