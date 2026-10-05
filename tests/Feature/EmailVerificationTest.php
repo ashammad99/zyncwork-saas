@@ -174,6 +174,32 @@ class EmailVerificationTest extends TestCase
         $this->post('/email/verification-notification')->assertStatus(429);
     }
 
+    public function test_verification_emails_are_capped_per_address_per_day(): void
+    {
+        $user = $this->makeUser();
+        $this->actingAs($user);
+        $cap = config('onboarding.verification.emails_per_day');
+
+        // Spread over minutes, to stay under the per-minute route limit.
+        foreach (range(1, $cap) as $i) {
+            Carbon::setTestNow(now()->addMinutes(2));
+            $this->post('/email/verification-notification')->assertSessionHas('status');
+        }
+        $this->assertSame($cap, Mail::queued(GeneralMail::class)->count());
+
+        Carbon::setTestNow(now()->addMinutes(2));
+        $this->post('/email/verification-notification')->assertSessionHasErrors('email');
+
+        // The cap holds whatever triggers the email, not just this route.
+        $user->sendEmailVerificationNotification();
+        $this->assertSame($cap, Mail::queued(GeneralMail::class)->count());
+
+        // A day later, one more is allowed.
+        Carbon::setTestNow(now()->addDay());
+        $this->post('/email/verification-notification')->assertSessionHas('status');
+        $this->assertSame($cap + 1, Mail::queued(GeneralMail::class)->count());
+    }
+
     // ── Changing an email ─────────────────────────────────────────────────
 
     public function test_changing_your_own_email_requires_verifying_it(): void

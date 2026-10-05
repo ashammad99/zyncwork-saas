@@ -5,10 +5,15 @@ namespace App\Features\UserManagement\Admin\Services;
 use App\Core\BaseService;
 use App\Features\Auth\Models\User;
 use App\Features\ActivityLog\Events\ActivityLogged;
+use App\Features\Onboarding\Services\InvitationService;
 use Illuminate\Support\Facades\Auth;
 
 class UserService extends BaseService
 {
+    public function __construct(
+        protected InvitationService $invitations
+    ) {}
+
     /**
      * Get paginated users.
      */
@@ -30,6 +35,7 @@ class UserService extends BaseService
     public function updateUser(User $user, array $data): User
     {
         $wasActive = $user->is_active;
+        $wasAdmin = $user->role === 'admin';
 
         $user->update([
             'name' => $data['name'],
@@ -42,6 +48,12 @@ class UserService extends BaseService
 
 
         ]);
+
+        // Invitations carry the inviter's authority: an admin who is demoted or
+        // suspended can no longer bring anyone in (findOpen also refuses them).
+        if ($wasAdmin && ($user->role !== 'admin' || ! $user->is_active)) {
+            $this->invitations->revokeAllFrom($user, Auth::user());
+        }
 
         if ($wasActive && !$user->is_active) {
             event(new ActivityLogged(Auth::user(), 'user_suspended', "Suspended user account: {$user->email}", 'security'));

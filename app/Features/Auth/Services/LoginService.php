@@ -31,7 +31,10 @@ class LoginService extends BaseService
         // password guessing, without letting anyone lock a user out from elsewhere.
         $throttleKey = Str::transliterate(Str::lower((string) ($credentials['email'] ?? ''))).'|'.request()->ip();
 
-        if (RateLimiter::tooManyAttempts($throttleKey, self::MAX_ATTEMPTS)) {
+        // Counted before the (slow) password check, in one atomic increment, so
+        // guesses sent in parallel can't all get past the limit. A successful
+        // sign-in clears the count.
+        if (RateLimiter::hit($throttleKey, self::DECAY_SECONDS) > self::MAX_ATTEMPTS) {
             throw ValidationException::withMessages([
                 'email' => __('auth.throttle', ['seconds' => RateLimiter::availableIn($throttleKey)]),
             ]);
@@ -68,8 +71,6 @@ class LoginService extends BaseService
 
             return true;
         }
-
-        RateLimiter::hit($throttleKey, self::DECAY_SECONDS);
 
         throw ValidationException::withMessages([
             'email' => __('auth.failed'),

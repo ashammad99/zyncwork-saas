@@ -3,7 +3,10 @@
 namespace Tests\Feature;
 
 use App\Features\Auth\Models\User;
+use Illuminate\Auth\Events\Attempting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -53,6 +56,22 @@ class TenantLoginThrottleTest extends TestCase
 
         $this->assertStringStartsWith('Too many login attempts', session('errors')->first('email'));
         $this->assertGuest('web');
+    }
+
+    public function test_an_attempt_is_counted_before_the_password_is_checked(): void
+    {
+        $key = "{$this->user->email}|127.0.0.1";
+        $countWhileChecking = null;
+
+        // Attempting fires just before the (slow) password check. Parallel guesses can only
+        // all be held to the limit if each one is counted by then, not after it fails.
+        Event::listen(Attempting::class, function () use ($key, &$countWhileChecking) {
+            $countWhileChecking = RateLimiter::attempts($key);
+        });
+
+        $this->post('/auth/login', ['email' => $this->user->email, 'password' => 'wrong-password']);
+
+        $this->assertSame(1, $countWhileChecking);
     }
 
     public function test_the_block_lifts_after_a_minute(): void

@@ -7,6 +7,8 @@ use App\Features\ActivityLog\Models\ActivityLog;
 use App\Features\Auth\Models\User;
 use App\Features\Departments\Admin\Models\Department;
 use App\Features\Onboarding\Models\UserInvitation;
+use App\Features\Onboarding\Services\InvitationService;
+use Illuminate\Validation\ValidationException;
 use App\Features\Tenancy\Models\Tenant;
 use App\Mail\GeneralMail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -267,11 +269,42 @@ class UserInvitationTest extends TestCase
         $this->invite(['email' => 'two@example.com']);
 
         $this->actingAs($this->admin)->post('/admin/invitations', ['email' => 'three@example.com', 'role' => 'employee'])
-            ->assertInvalid(['email']);
+            ->assertStatus(302)
+            ->assertSessionHas('error');
         $this->assertSame(2, UserInvitation::count());
 
         Carbon::setTestNow(now()->addHour()->addSecond());
         $this->invite(['email' => 'three@example.com']);
+    }
+
+    public function test_rejected_invite_attempts_count_towards_the_limit(): void
+    {
+        config(['onboarding.invitations.per_hour' => 3]);
+        $elsewhere = $this->makeUser('employee', tenantId: Tenant::create(['name' => 'Other Co'])->id);
+
+        // Testing whether addresses exist elsewhere: every attempt is rejected, and each one counts.
+        foreach (range(1, 3) as $i) {
+            $this->actingAs($this->admin)->post('/admin/invitations', ['email' => $elsewhere->email, 'role' => 'employee'])
+                ->assertInvalid(['email']);
+        }
+
+        $this->actingAs($this->admin)->post('/admin/invitations', ['email' => $elsewhere->email, 'role' => 'employee'])
+            ->assertSessionHas('error')
+            ->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->post('/admin/invitations', ['email' => 'real.person@example.com', 'role' => 'employee'])
+            ->assertSessionHas('error');
+        $this->assertSame(0, UserInvitation::count());
+    }
+
+    public function test_the_taken_email_message_does_not_say_where(): void
+    {
+        $sameTenant = $this->makeUser('employee');
+        $elsewhere = $this->makeUser('employee', tenantId: Tenant::create(['name' => 'Other Co'])->id);
+
+        foreach ([$sameTenant->email, $elsewhere->email] as $email) {
+            $this->actingAs($this->admin)->post('/admin/invitations', ['email' => $email, 'role' => 'employee'])
+                ->assertInvalid(['email' => "This email address can't be invited."]);
+        }
     }
 
     // ── Accepting ─────────────────────────────────────────────────────────
@@ -415,6 +448,96 @@ class UserInvitationTest extends TestCase
         $this->assertSame('employee', $user->role);
         $this->assertSame($this->department->id, $user->department_id);
         $this->assertFalse(User::withoutTenancy()->where('email', 'hijack@example.com')->exists());
+    }
+
+    // ── Races between the admin and the invitee ───────────────────────────
+
+    public function test_revoking_an_invite_accepted_meanwhile_is_refused(): void
+    {
+        $token = $this->invite();
+        $loadedByAdmin = $this->invitation();
+
+        // The invitee accepts after the admin's copy was loaded...
+        $this->accept($token)->assertRedirect(route('dashboard'));
+
+        // ...so the revoke must not report success on an account that now exists.
+        $this->expectException(ValidationException::class);
+        try {
+            app(TenantContext::class)->run($this->tenant->id, fn () => app(InvitationService::class)->revoke($loadedByAdmin, $this->admin));
+        } finally {
+            $this->assertNull($this->invitation()->revoked_at);
+        }
+    }
+
+    public function test_resending_an_invite_accepted_meanwhile_is_refused(): void
+    {
+        $token = $this->invite();
+        $loadedByAdmin = $this->invitation();
+        $this->accept($token);
+
+        $this->expectException(ValidationException::class);
+        try {
+            app(TenantContext::class)->run($this->tenant->id, fn () => app(InvitationService::class)->resend($loadedByAdmin, $this->admin));
+        } finally {
+            $this->assertSame(hash('sha256', $token), $this->invitation()->token_hash);
+        }
+    }
+
+    // ── The inviter's authority ───────────────────────────────────────────
+
+    public function test_invites_stop_working_once_the_inviter_is_no_longer_an_active_admin(): void
+    {
+        foreach ([['role' => 'manager'], ['is_active' => false]] as $i => $change) {
+            $inviter = $this->makeUser('admin');
+            $this->admin = $inviter;
+            $token = $this->invite(['email' => "lapsed{$i}@example.com"]);
+
+            // Changed directly, as any path might: findOpen checks the inviter itself.
+            User::withoutTenancy()->whereKey($inviter->id)->update($change + ['department_id' => $this->department->id]);
+
+            $this->post('/auth/logout');
+            $this->get("/invitations/{$token}")->assertSee('This invitation is no longer valid');
+            $this->accept($token)->assertRedirect(route('invitations.show', $token));
+            $this->assertFalse(User::withoutTenancy()->where('email', "lapsed{$i}@example.com")->exists());
+        }
+    }
+
+    public function test_demoting_or_suspending_an_admin_revokes_their_pending_invites(): void
+    {
+        $otherAdmin = $this->makeUser('admin');
+
+        foreach ([['role' => 'manager', 'is_active' => true], ['role' => 'admin', 'is_active' => false]] as $i => $change) {
+            $inviter = $this->makeUser('admin');
+            $this->admin = $inviter;
+            $this->invite(['email' => "theirs{$i}@example.com"]);
+            $this->admin = $otherAdmin;
+            $this->invite(['email' => "kept{$i}@example.com"]);
+
+            $this->actingAs($otherAdmin)->put("/admin/users/{$inviter->id}", $change + [
+                'name' => $inviter->name,
+                'email' => $inviter->email,
+                'daily_capacity_hours' => 8,
+                'department_id' => $this->department->id,
+            ])->assertSessionHas('success');
+
+            $this->assertNotNull(UserInvitation::where('email', "theirs{$i}@example.com")->sole()->revoked_at);
+            $this->assertTrue(UserInvitation::where('email', "kept{$i}@example.com")->sole()->isOpen());
+        }
+
+        $this->assertSame(2, ActivityLog::where('action', 'user_invites_revoked')->count());
+    }
+
+    public function test_other_edits_to_an_admin_leave_their_invites_open(): void
+    {
+        $inviter = $this->makeUser('admin');
+        $this->admin = $inviter;
+        $this->invite(['email' => 'still-open@example.com']);
+
+        $this->actingAs($this->makeUser('admin'))->put("/admin/users/{$inviter->id}", [
+            'name' => 'Renamed Admin', 'email' => $inviter->email, 'role' => 'admin', 'is_active' => true, 'daily_capacity_hours' => 8,
+        ])->assertSessionHas('success');
+
+        $this->assertTrue(UserInvitation::where('email', 'still-open@example.com')->sole()->isOpen());
     }
 
     public function test_accepting_is_throttled_per_ip(): void

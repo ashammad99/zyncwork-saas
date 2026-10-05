@@ -9,6 +9,7 @@ use App\Features\Auth\Models\User;
 use App\Features\Onboarding\Models\UserInvitation;
 use App\Features\Tenancy\Models\Tenant;
 use App\Mail\GeneralMail;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -29,10 +30,10 @@ class InvitationService extends BaseService
         protected TenantContext $tenantContext,
     ) {}
 
+    // The per-tenant hourly limit is a route limiter (throttle:invitations), so
+    // that rejected attempts count too, not just the invites sent.
     public function invite(User $inviter, array $data): UserInvitation
     {
-        $this->countTowardsHourlyLimit($inviter);
-
         $token = Str::random(64);
 
         $invitation = UserInvitation::create([
@@ -62,32 +63,55 @@ class InvitationService extends BaseService
             throw ValidationException::withMessages(['invitation' => 'This invitation was just sent. Please wait a minute before sending it again.']);
         }
 
-        $this->countTowardsHourlyLimit($by);
-
         $token = Str::random(64);
-        $invitation->forceFill([
-            'token_hash' => hash('sha256', $token),
-            'expires_at' => now()->addDays((int) config('onboarding.invitations.expire_days')),
-        ])->save();
+        $expiresAt = now()->addDays((int) config('onboarding.invitations.expire_days'));
 
+        // Conditional, like accept(): an invite accepted or revoked since it was loaded is left alone.
+        if (! $this->whereStillPending($invitation)->update(['token_hash' => hash('sha256', $token), 'expires_at' => $expiresAt])) {
+            throw $this->noLongerPending();
+        }
+
+        $invitation->refresh();
         $this->sendInvite($invitation, $by, $token);
         event(new ActivityLogged($by, 'user_invite_resent', "Resent the invitation to {$invitation->email}.", 'system'));
     }
 
     public function revoke(UserInvitation $invitation, User $by): void
     {
-        if ($invitation->accepted_at !== null || $invitation->revoked_at !== null) {
-            throw ValidationException::withMessages(['invitation' => 'This invitation has already been used or revoked.']);
+        // Conditional, like accept(): if the invitee accepted after this was
+        // loaded, the admin is told so instead of seeing a revoke that did nothing.
+        if (! $this->whereStillPending($invitation)->update(['revoked_at' => now()])) {
+            throw $this->noLongerPending();
         }
 
-        $invitation->forceFill(['revoked_at' => now()])->save();
         event(new ActivityLogged($by, 'user_invite_revoked', "Revoked the invitation to {$invitation->email}.", 'system'));
     }
 
     /**
+     * An admin who is demoted or suspended can no longer bring people in: their
+     * pending invitations are revoked (findOpen also refuses them meanwhile).
+     *
+     * @return int how many were revoked
+     */
+    public function revokeAllFrom(User $inviter, User $by): int
+    {
+        $revoked = UserInvitation::where('invited_by', $inviter->id)
+            ->whereNull('accepted_at')
+            ->whereNull('revoked_at')
+            ->update(['revoked_at' => now()]);
+
+        if ($revoked) {
+            event(new ActivityLogged($by, 'user_invites_revoked', "Revoked {$revoked} pending ".Str::plural('invitation', $revoked)." sent by {$inviter->email}.", 'security'));
+        }
+
+        return $revoked;
+    }
+
+    /**
      * The open invite behind a token, or null when it is unknown, used,
-     * revoked, expired, or its tenant is suspended. Callers show one message
-     * for all of these, so a link never reveals which it was.
+     * revoked, expired, its tenant is suspended, or whoever sent it is no
+     * longer an active admin. Callers show one message for all of these, so a
+     * link never reveals which it was.
      */
     public function findOpen(string $token): ?UserInvitation
     {
@@ -101,7 +125,14 @@ class InvitationService extends BaseService
 
         $tenant = Tenant::find($invitation->tenant_id);
 
-        return $tenant && ! $tenant->isSuspended() ? $invitation : null;
+        if (! $tenant || $tenant->isSuspended()) {
+            return null;
+        }
+
+        // The invite carries the inviter's authority: it lapses with it.
+        $inviter = User::withoutTenancy()->find($invitation->invited_by);
+
+        return $inviter && $inviter->is_active && $inviter->role === 'admin' ? $invitation : null;
     }
 
     /**
@@ -177,13 +208,16 @@ class InvitationService extends BaseService
         ));
     }
 
-    /** New invites and resends share one per-tenant budget, so the app can't be used to send bulk email. */
-    private function countTowardsHourlyLimit(User $user): void
+    private function whereStillPending(UserInvitation $invitation): Builder
     {
-        // Counted before checking (one atomic increment), so parallel requests can't all get through.
-        if (RateLimiter::hit("invitations:tenant:{$user->tenant_id}", 3600) > (int) config('onboarding.invitations.per_hour')) {
-            throw ValidationException::withMessages(['email' => 'Too many invitations sent in the last hour. Please try again later.']);
-        }
+        return UserInvitation::whereKey($invitation->id)
+            ->whereNull('accepted_at')
+            ->whereNull('revoked_at');
+    }
+
+    private function noLongerPending(): ValidationException
+    {
+        return ValidationException::withMessages(['invitation' => 'This invitation has already been used or revoked.']);
     }
 
     private function emailTaken(): ValidationException

@@ -93,5 +93,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withCommands([
         __DIR__ . '/../app/Console/Commands',
     ])
+    // Needs one cron entry on the server: `* * * * * php artisan schedule:run`.
+    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule) {
+        $schedule->command('onboarding:release-unverified-signups')->hourly()->withoutOverlapping();
+    })
 
     ->create();

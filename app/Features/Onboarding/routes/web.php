@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('guest')->prefix('auth')->group(function () {
     Route::get('/register', [SignupController::class, 'index'])->name('register');
     Route::post('/register', [SignupController::class, 'store'])
-        ->middleware('throttle:'.config('onboarding.signup.per_hour').',60')
+        ->middleware('throttle:signup')
         ->name('auth.register.store');
 });
 
@@ -18,15 +18,15 @@ Route::prefix('email')->name('verification.')->group(function () {
     Route::get('/verify', [EmailVerificationController::class, 'notice'])->middleware('auth')->name('notice');
     // Signed link; works without signing in (see EmailVerificationController::verify).
     Route::get('/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
-        ->middleware(['signed', 'throttle:6,1'])
+        ->middleware(['signed', 'throttle:verification-verify'])
         ->name('verify');
     Route::post('/verification-notification', [EmailVerificationController::class, 'send'])
-        ->middleware(['auth', 'throttle:6,1'])
+        ->middleware(['auth', 'throttle:verification-send'])
         ->name('send');
 });
 
 // Accepting an invitation (guest; the emailed token is the credential).
-Route::prefix('invitations')->name('invitations.')->middleware('throttle:20,1')->group(function () {
+Route::prefix('invitations')->name('invitations.')->middleware('throttle:invitation-accept')->group(function () {
     Route::get('/{token}', [InvitationController::class, 'show'])->name('show');
     Route::post('/{token}', [InvitationController::class, 'accept'])->name('accept');
 });

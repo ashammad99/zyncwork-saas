@@ -25,6 +25,8 @@ class SignupService extends BaseService
     {
         $user = DB::transaction(function () use ($data) {
             $tenant = Tenant::create(['name' => trim($data['company_name'])]);
+            // Released if its admin hasn't verified by then (ReleaseUnverifiedSignupsCommand).
+            $tenant->forceFill(['signup_expires_at' => now()->addHours((int) config('onboarding.signup.verify_within_hours'))])->save();
 
             return $this->tenantContext->run($tenant->id, function () use ($tenant, $data) {
                 $user = User::create([

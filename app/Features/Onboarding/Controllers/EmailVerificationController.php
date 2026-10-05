@@ -6,6 +6,7 @@ use App\Core\BaseController;
 use App\Core\Tenancy\TenantContext;
 use App\Features\ActivityLog\Events\ActivityLogged;
 use App\Features\Auth\Models\User;
+use App\Features\Tenancy\Models\Tenant;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -48,6 +49,8 @@ class EmailVerificationController extends BaseController
         if (! $user->hasVerifiedEmail()) {
             $this->tenantContext->run($user->tenant_id, function () use ($user) {
                 $user->markEmailAsVerified();
+                // A signup counts as verified from now on and is never released.
+                Tenant::whereKey($user->tenant_id)->whereNotNull('signup_expires_at')->update(['signup_expires_at' => null]);
                 event(new Verified($user));
                 event(new ActivityLogged($user, 'email_verified', "Verified email address {$user->email}.", 'security'));
             });
@@ -64,6 +67,10 @@ class EmailVerificationController extends BaseController
     {
         if ($request->user()->hasVerifiedEmail()) {
             return redirect()->route('dashboard');
+        }
+
+        if ($request->user()->verificationMailLimitReached()) {
+            return back()->withErrors(['email' => "You've reached today's limit of verification emails. Please use the latest link, or try again tomorrow."]);
         }
 
         $request->user()->sendEmailVerificationNotification();

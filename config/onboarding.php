@@ -12,6 +12,14 @@ return [
     'signup' => [
         // Per IP.
         'per_hour' => 5,
+        // A signup whose admin hasn't verified by then is released, freeing the
+        // email address (onboarding:release-unverified-signups, run hourly).
+        'verify_within_hours' => 24,
+    ],
+
+    'verification' => [
+        // Per email address, whatever triggers them (signup, resend, email change).
+        'emails_per_day' => 10,
     ],
 
 ];

@@ -15,7 +15,9 @@ use App\Mail\GeneralMail;
 use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -43,9 +45,18 @@ class User extends Authenticatable implements MustVerifyEmail
         });
     }
 
-    /** Sent with the app's own mail template (GeneralMail), queued like every other email. */
+    /**
+     * Sent with the app's own mail template (GeneralMail), queued like every
+     * other email. At most onboarding.verification.emails_per_day per address,
+     * whatever triggers it, so the app can't be used to flood an inbox.
+     */
     public function sendEmailVerificationNotification(): void
     {
+        // Counted before checking (one atomic increment), so parallel requests can't all get through.
+        if (RateLimiter::hit($this->verificationMailKey(), 86400) > (int) config('onboarding.verification.emails_per_day')) {
+            return;
+        }
+
         $url = URL::temporarySignedRoute(
             'verification.verify',
             now()->addMinutes((int) config('auth.verification.expire', 60)),
@@ -61,6 +72,17 @@ class User extends Authenticatable implements MustVerifyEmail
                 'expiresInMinutes' => (int) config('auth.verification.expire', 60),
             ]
         ));
+    }
+
+    /** True once today's verification emails to this address are used up (for the resend screen). */
+    public function verificationMailLimitReached(): bool
+    {
+        return RateLimiter::attempts($this->verificationMailKey()) >= (int) config('onboarding.verification.emails_per_day');
+    }
+
+    private function verificationMailKey(): string
+    {
+        return 'verification-mail:'.sha1(Str::lower($this->getEmailForVerification()));
     }
 
     protected $fillable = [

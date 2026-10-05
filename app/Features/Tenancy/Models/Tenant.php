@@ -12,11 +12,14 @@ class Tenant extends Model
 {
     protected $fillable = ['name'];
 
-    // suspended_at / suspended_reason are set only by TenantSuspensionService.
+    // suspended_at / suspended_reason are set only by TenantSuspensionService,
+    // and by ReleaseUnverifiedSignupsCommand for signups that never verified.
+    // signup_expires_at is set by SignupService and cleared on first verification.
     protected function casts(): array
     {
         return [
             'suspended_at' => 'datetime',
+            'signup_expires_at' => 'datetime',
         ];
     }
 

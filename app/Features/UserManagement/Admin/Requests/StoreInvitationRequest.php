@@ -43,7 +43,10 @@ class StoreInvitationRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.unique' => 'This email address already has an account.',
+            // Deliberately vague: the check is platform-wide, so a precise message
+            // would tell an admin which addresses exist in other companies.
+            // The per-tenant route limit (throttle:invitations) caps any probing.
+            'email.unique' => "This email address can't be invited.",
             'department_id.required_if' => 'Managers need a department.',
         ];
     }
