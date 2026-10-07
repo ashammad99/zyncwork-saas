@@ -113,8 +113,11 @@ jobs:
           key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
           restore-keys: composer-${{ runner.os }}-
 
+      # --no-scripts: package:discover boots the app, which refuses to start
+      # without .env (APP_ENV defaults to production, PLATFORM_DOMAIN unset).
+      # Pint doesn't need the app.
       - name: Install Composer dependencies
-        run: composer install --no-interaction --no-progress --prefer-dist
+        run: composer install --no-interaction --no-progress --prefer-dist --no-scripts
 
       # Pint's version comes from composer.lock, so CI and local runs agree.
       - name: Check code style
