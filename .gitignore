@@ -24,3 +24,6 @@ Thumbs.db
 
 # Local database dumps (real user data, password hashes)
 /backups/
+
+# Local MCP server config (machine-specific)
+/.mcp.json
