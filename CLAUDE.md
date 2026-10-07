@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Zyncwork is an internal project-management app with three portals: **admin**, **manager**, and **employee**. It covers projects, tasks, time tracking and approval, comments and mentions, notifications, dashboards, and CSV/PDF time reports.
 
-Stack (from the lock files): PHP ^8.2, Laravel 12.56, inertia-laravel 3.0, @inertiajs/react 3.0, React 19.2 (plain `.jsx`, no TypeScript), Tailwind 4.2, Vite 7, Chart.js, lucide-react, and barryvdh/laravel-dompdf for PDFs. Dev and production use MySQL (`.env`, database `zyncwork_saas_db`). Tests also use MySQL, on a separate database, `zyncwork_saas_db_test`, set in `phpunit.xml` with `force="true"`. `tests/TestCase.php` refuses to boot against any other database, because `RefreshDatabase` drops every table. There is no CI, no Docker, and no JS linter or test runner.
+Stack (from the lock files): PHP ^8.2, Laravel 12.56, inertia-laravel 3.0, @inertiajs/react 3.0, React 19.2 (plain `.jsx`, no TypeScript), Tailwind 4.2, Vite 7, Chart.js, lucide-react, and barryvdh/laravel-dompdf for PDFs. Dev and production use MySQL (`.env`, database `zyncwork_saas_db`). Tests also use MySQL, on a separate database, `zyncwork_saas_db_test`, set in `phpunit.xml` with `force="true"`. `tests/TestCase.php` refuses to boot against any other database, because `RefreshDatabase` drops every table. CI runs on GitHub Actions (see CI below). There is no Docker, and no JS linter or test runner.
 
 The project was scaffolded from the "Laravel FeatureKit" starter. `.agent/agent.md` (and the longer `DOCS.md`) documents the kit's shared React components, hooks (`@/Hooks`), utilities (`@/Utils`), `GeneralMail`, and Tailwind tokens. Read the relevant section before writing a new UI primitive, hook, helper, or mailable. One of the kit's layout examples there is outdated for this project; see Frontend below.
 
@@ -19,6 +19,8 @@ composer test                                 # config:clear + full suite (needs
 php artisan test --filter=ProjectTimelineTest # one class (or --filter=test_method_name)
 php artisan route:list --path=manager/projects  # check real URLs/names/middleware before touching routes
 npm run build                                 # writes public/build/ (tracked in git)
+vendor/bin/pint --dirty                       # format the PHP files you changed (CI fails on unformatted code)
+vendor/bin/pint --test                        # check only, as CI does
 php artisan migrate --seed                    # seeds 3 users: admin@/manager@/emp@example.com, password 12345678
 ```
 
@@ -83,16 +85,25 @@ The seeder creates no departments. Managers without a `department_id` fail most 
 - Columns like `tasks.status`, `priority`, `impact`, `effort`, `projects.status`, and `time_logs.entry_type` are DB enums. Adding a value needs a migration plus model constants, validation rules, all transition maps, and frontend labels.
 - `ProjectFactory` and `UserFactory` exist, but `Project` doesn't use `HasFactory`. Tests build fixtures with `Model::create()`.
 
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `ahmed-1`:
+
+- **tests** (blocking): PHP 8.2 and a MySQL 8.0 service container that creates `zyncwork_saas_db_test`. It runs `migrate`, `migrate:rollback`, and `migrate` again, so every migration must also roll back on a fresh database, then `composer test`. A new PHP extension or env var the suite needs must be added to the workflow too.
+- **pint** (blocking): `vendor/bin/pint --test`.
+- **frontend** (non-blocking for now): `npm ci && npm run build`, then fails if `public/build` differs from the committed build.
+- **audit** (non-blocking for now): `composer audit --locked`.
+
 ## Working rules
 
 - Investigate before changing anything. Read the existing implementation, its callers, the related policy, and the route (`route:list`) first. Prefer the pattern already used in the same feature.
 - Make the smallest change that solves the task and preserve existing behavior unless the task is to change it. Change only the files you need to.
 - No opportunistic refactors, reformatting, renames or moves (of classes, routes, route names, columns, directories), new abstractions, or new packages without a concrete need.
 - Don't change auth, policies, role middleware, `bootstrap/app.php`, `app/Core`, shared props, or the DB schema until you understand everything that depends on them. Call out such changes explicitly.
-- **The codebase is not Pint-clean.** Don't run `pint` on the repo or on existing files, because it rewrites whole files. If you do format, limit it to files you created (`vendor/bin/pint path/to/NewFile.php`).
+- **Pint is enforced.** The codebase is Pint-clean (Laravel preset, `pint.json`) and CI fails on any unformatted PHP file. Run `vendor/bin/pint --dirty` before committing. The one repo-wide reformat commit is listed in `.git-blame-ignore-revs`; run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once so local `git blame` skips it (GitHub does this automatically).
 - Behavior changes need tests: feature tests in `tests/Feature/` that use `RefreshDatabase`, hand-built fixtures, `actingAs`, and `Carbon::setTestNow` for date logic. Users created in tests start verified (`TestCase::$usersStartVerified`); onboarding tests set it to `false`. Cover role and department scoping (admin, same-department manager, other-department manager, employee), following the existing tests.
 - Never weaken or edit a test just to make it pass. Run the targeted test first, then `composer test`. Report pre-existing failures separately from ones your change introduced, and never claim something works without having run it.
-- `public/build/` is committed. After frontend changes, ask before rebuilding or committing build output.
+- `public/build/` is committed. After frontend changes, ask before rebuilding or committing build output. CI rebuilds it and flags a mismatch (non-blocking for now).
 - Ask before destructive or hard-to-reverse actions: data deletion, dropping tables, force pushes, or deleting files you didn't create.
 
 ## Known pitfalls

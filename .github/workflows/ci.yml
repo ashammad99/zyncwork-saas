@@ -1,0 +1,172 @@
+name: CI
+
+on:
+  push:
+    branches: [ahmed-1]
+  pull_request:
+
+# A newer push to the same branch or PR cancels the run still in progress.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (MySQL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    services:
+      # Same major version as local dev (8.0.30). MYSQL_DATABASE creates the
+      # test database; tests/TestCase.php refuses to run against any other name.
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: zyncwork_saas_db_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    # Real environment variables take precedence over .env. phpunit.xml forces
+    # DB_CONNECTION and DB_DATABASE for the suite itself; these also point the
+    # migration steps at the throwaway test database.
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: zyncwork_saas_db_test
+      DB_USERNAME: root
+      DB_PASSWORD: root
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, dom, fileinfo, gd, intl, pdo_mysql, zip
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Prepare .env
+        run: cp .env.example .env
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      # Encrypted columns (platform 2FA secrets) need an APP_KEY.
+      - name: Generate app key
+        run: php artisan key:generate
+
+      # The suite migrates on its own (RefreshDatabase); these steps check
+      # separately that every migration runs on a fresh MySQL and rolls back.
+      - name: Migrate
+        run: php artisan migrate --force
+
+      - name: Roll back all migrations
+        run: php artisan migrate:rollback --force
+
+      - name: Migrate again
+        run: php artisan migrate --force
+
+      - name: Run tests
+        run: composer test
+
+  pint:
+    name: Code style (Pint)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, dom, fileinfo, gd, intl, zip
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      # Pint's version comes from composer.lock, so CI and local runs agree.
+      - name: Check code style
+        run: vendor/bin/pint --test
+
+  frontend:
+    name: Frontend build matches public/build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Non-blocking until a few runs show a Linux build reproduces the
+    # committed one byte for byte.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # public/build is committed because the server has no build step. Fails
+      # when the committed build is stale (e.g. JSX changed without a rebuild).
+      - name: Compare with the committed build
+        run: |
+          if [ -n "$(git status --porcelain -- public/build)" ]; then
+            echo "::error::public/build does not match a fresh build. Run npm run build and commit public/build."
+            git status --short -- public/build
+            exit 1
+          fi
+
+  audit:
+    name: Dependency audit (Composer)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Non-blocking for now: known advisories are being worked through.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      # Reads composer.lock only; no install needed.
+      - name: Audit locked dependencies
+        run: composer audit --locked
