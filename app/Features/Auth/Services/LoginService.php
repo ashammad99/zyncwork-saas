@@ -20,9 +20,6 @@ class LoginService extends BaseService
     /**
      * Handle the login attempt.
      *
-     * @param array $credentials
-     * @param bool $remember
-     * @return bool
      * @throws ValidationException
      */
     public function attempt(array $credentials, bool $remember = false): bool

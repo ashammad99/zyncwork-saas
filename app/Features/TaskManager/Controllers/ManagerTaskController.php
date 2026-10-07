@@ -3,16 +3,18 @@
 namespace App\Features\TaskManager\Controllers;
 
 use App\Core\BaseController;
+use App\Core\Tenancy\TenantRule;
+use App\Features\Auth\Models\User;
 use App\Features\TaskAdmin\Models\Task;
 use App\Features\TaskManager\Requests\StoreTaskRequest;
 use App\Features\TaskManager\Requests\UpdateTaskRequest;
 use App\Features\TaskManager\Requests\UpdateTaskStatusRequest;
 use App\Features\TaskManager\Services\ManagerTaskService;
-use Inertia\Inertia;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
-
+use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Response;
-use App\Core\Tenancy\TenantRule;
 
 class ManagerTaskController extends BaseController
 {
@@ -30,13 +32,13 @@ class ManagerTaskController extends BaseController
         $filters = request()->only(['search', 'status', 'priority', 'project_id', 'assignee_id', 'due_date']);
 
         $tasks = $this->taskService->getAll($manager, $filters);
-        $deps  = $this->taskService->getFormDependencies($manager);
+        $deps = $this->taskService->getFormDependencies($manager);
 
         return Inertia::render('(portals)/manager/tasks/Index', [
-            'tasks'     => $tasks,
-            'projects'  => $deps['projects'],
+            'tasks' => $tasks,
+            'projects' => $deps['projects'],
             'employees' => $deps['employees'],
-            'filters'   => $filters,
+            'filters' => $filters,
         ]);
     }
 
@@ -47,10 +49,10 @@ class ManagerTaskController extends BaseController
         $this->authorize('create', Task::class);
 
         $manager = auth()->user();
-        $deps    = $this->taskService->getFormDependencies($manager);
+        $deps = $this->taskService->getFormDependencies($manager);
 
         return Inertia::render('(portals)/manager/tasks/Create', [
-            'projects'  => $deps['projects'],
+            'projects' => $deps['projects'],
             'employees' => $deps['employees'],
         ]);
     }
@@ -74,7 +76,7 @@ class ManagerTaskController extends BaseController
     {
         $this->authorize('view', $task);
 
-        $manager  = auth()->user();
+        $manager = auth()->user();
         $fullTask = $this->taskService->find($task->id, $manager);
 
         $deps = $this->taskService->getFormDependencies($manager);
@@ -87,12 +89,12 @@ class ManagerTaskController extends BaseController
             ->get();
 
         return Inertia::render('(portals)/manager/tasks/Show', [
-            'task'      => $fullTask,
-            'comments'  => $comments,
-            'projects'  => $deps['projects'],
+            'task' => $fullTask,
+            'comments' => $comments,
+            'projects' => $deps['projects'],
             'employees' => $deps['employees'],
             'currentUser' => $manager->only(['id', 'name', 'role']),
-            'mentionableUsers' => \App\Features\Auth\Models\User::query()
+            'mentionableUsers' => User::query()
                 ->where('is_active', true)
                 ->where('id', '!=', $manager->id)
                 ->where(function ($q) use ($fullTask) {
@@ -102,11 +104,11 @@ class ManagerTaskController extends BaseController
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'can' => [
-                'edit'       => auth()->user()->can('update', $fullTask),
-                'delete'     => auth()->user()->can('delete', $fullTask),
+                'edit' => auth()->user()->can('update', $fullTask),
+                'delete' => auth()->user()->can('delete', $fullTask),
                 'transition' => auth()->user()->can('updateStatus', $fullTask),
                 'reactivate' => auth()->user()->can('reactivate', $fullTask),
-                'assign'     => auth()->user()->can('assign', $fullTask),
+                'assign' => auth()->user()->can('assign', $fullTask),
             ],
         ]);
     }
@@ -117,9 +119,9 @@ class ManagerTaskController extends BaseController
     {
         $this->authorize('update', $task);
 
-        $manager  = auth()->user();
+        $manager = auth()->user();
         $fullTask = $this->taskService->find($task->id, $manager);
-        $deps     = $this->taskService->getFormDependencies($manager);
+        $deps = $this->taskService->getFormDependencies($manager);
 
         // Tasks available as dependency (same project, exclude self)
         $dependencyOptions = $fullTask->project_id
@@ -127,9 +129,9 @@ class ManagerTaskController extends BaseController
             : [];
 
         return Inertia::render('(portals)/manager/tasks/Edit', [
-            'task'              => $fullTask,
-            'projects'          => $deps['projects'],
-            'employees'         => $deps['employees'],
+            'task' => $fullTask,
+            'projects' => $deps['projects'],
+            'employees' => $deps['employees'],
             'dependencyOptions' => $dependencyOptions,
         ]);
     }
@@ -173,16 +175,17 @@ class ManagerTaskController extends BaseController
 
     // ─── Dependency options (AJAX helper) ────────────────────────────────────
 
-    public function dependencyOptions(int $projectId): \Illuminate\Http\JsonResponse
+    public function dependencyOptions(int $projectId): JsonResponse
     {
         $manager = auth()->user();
-        $taskId  = request()->integer('exclude');
+        $taskId = request()->integer('exclude');
 
         $options = $this->taskService->getTasksForDependency($projectId, $manager, $taskId ?: null);
 
         return response()->json($options);
     }
-    public function assign(\Illuminate\Http\Request $request, Task $task): \Illuminate\Http\RedirectResponse
+
+    public function assign(Request $request, Task $task): RedirectResponse
     {
         $this->authorize('assign', $task);
 
@@ -194,37 +197,36 @@ class ManagerTaskController extends BaseController
 
         return back()->with('success', 'Task assigned.');
     }
-    public function team(\Illuminate\Http\Request $request): Response
-    {
-        $manager   = $request->user();
-        $weekStart = now()->startOfWeek();
-        $weekEnd   = now()->endOfWeek();
 
-        $members = \App\Features\Auth\Models\User::query()
+    public function team(Request $request): Response
+    {
+        $manager = $request->user();
+        $weekStart = now()->startOfWeek();
+        $weekEnd = now()->endOfWeek();
+
+        $members = User::query()
             ->where('department_id', $manager->department_id)
             ->where('role', 'employee')
             ->where('is_active', true)
-            ->withCount(['assignedTasks as assigned_tasks' => fn ($q) =>
-            $q->whereNotIn('status', [Task::STATUS_COMPLETED]),
+            ->withCount(['assignedTasks as assigned_tasks' => fn ($q) => $q->whereNotIn('status', [Task::STATUS_COMPLETED]),
             ])
-            ->withSum(['timeLogs as week_minutes' => fn ($q) =>
-            $q->whereBetween('started_at', [$weekStart, $weekEnd]),
+            ->withSum(['timeLogs as week_minutes' => fn ($q) => $q->whereBetween('started_at', [$weekStart, $weekEnd]),
             ], 'duration_minutes')
             ->orderBy('name')
             ->get(['id', 'name', 'email', 'profile_image', 'daily_capacity_hours'])
             ->map(function ($m) {
-                $loggedHours   = round(($m->week_minutes ?? 0) / 60, 1);
-                $capacityWeek  = ($m->daily_capacity_hours ?: 8) * 5;
+                $loggedHours = round(($m->week_minutes ?? 0) / 60, 1);
+                $capacityWeek = ($m->daily_capacity_hours ?: 8) * 5;
 
                 return [
-                    'id'                   => $m->id,
-                    'name'                 => $m->name,
-                    'email'                => $m->email,
-                    'profile_image'        => $m->profile_image,
+                    'id' => $m->id,
+                    'name' => $m->name,
+                    'email' => $m->email,
+                    'profile_image' => $m->profile_image,
                     'daily_capacity_hours' => $m->daily_capacity_hours ?: 8,
-                    'assigned_tasks'       => $m->assigned_tasks,
-                    'logged_hours_week'    => $loggedHours,
-                    'utilization'          => $capacityWeek > 0
+                    'assigned_tasks' => $m->assigned_tasks,
+                    'logged_hours_week' => $loggedHours,
+                    'utilization' => $capacityWeek > 0
                         ? (int) round(($loggedHours / $capacityWeek) * 100)
                         : 0,
                 ];
@@ -234,6 +236,4 @@ class ManagerTaskController extends BaseController
             'members' => $members,
         ]);
     }
-
-
 }

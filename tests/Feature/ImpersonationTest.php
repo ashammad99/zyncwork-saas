@@ -13,6 +13,7 @@ use App\Features\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -97,7 +98,7 @@ class ImpersonationTest extends TestCase
         return PlatformImpersonation::sole();
     }
 
-    private function tenantLog(): \Illuminate\Support\Collection
+    private function tenantLog(): Collection
     {
         return app(TenantContext::class)->run($this->tenant->id, fn () => ActivityLog::orderBy('id')->get());
     }
@@ -334,7 +335,7 @@ class ImpersonationTest extends TestCase
             $this->assertSame(hash('sha256', 'valid-invite-token'), $invitation->fresh()->token_hash);
             $this->assertFalse(User::where('email', 'invited@example.com')->exists());
         });
-        $this->assertSame(1, \App\Features\Tenancy\Models\Tenant::count());
+        $this->assertSame(1, Tenant::count());
 
         // Blocked requests are refused before they run, so none is logged as a change.
         $this->assertSame(0, PlatformAuditLog::where('action', PlatformAuditLog::IMPERSONATION_ACTION)->count());

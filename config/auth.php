@@ -1,5 +1,7 @@
 <?php
 
+use App\Features\Auth\Models\User;
+use App\Features\Platform\Models\PlatformAdmin;
 
 return [
 
@@ -71,13 +73,13 @@ return [
             // Eloquent provider that looks users up before a tenant is known
             // (App\Core\Tenancy\TenantAwareUserProvider).
             'driver' => 'tenant-eloquent',
-            'model' => env('AUTH_MODEL', App\Features\Auth\Models\User::class),
+            'model' => env('AUTH_MODEL', User::class),
         ],
 
         // Plain eloquent: platform admins are not tenant-owned.
         'platform_admins' => [
             'driver' => 'eloquent',
-            'model' => App\Features\Platform\Models\PlatformAdmin::class,
+            'model' => PlatformAdmin::class,
         ],
 
         // 'users' => [

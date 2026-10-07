@@ -5,12 +5,12 @@ namespace App\Features\UserManagement\Admin\Controllers;
 use App\Core\BaseController;
 use App\Features\Auth\Models\User;
 use App\Features\Departments\Admin\Models\Department;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Illuminate\Support\Facades\Auth;
-use App\Features\UserManagement\Admin\Services\UserService;
 use App\Features\Onboarding\Models\UserInvitation;
 use App\Features\UserManagement\Admin\Requests\UpdateUserRequest;
+use App\Features\UserManagement\Admin\Services\UserService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 
 class UserController extends BaseController
 {
@@ -39,7 +39,7 @@ class UserController extends BaseController
                     'expired' => $invitation->expires_at->isPast(),
                 ]),
 
-            'filters' => $request->only(['search'])
+            'filters' => $request->only(['search']),
         ]);
     }
 

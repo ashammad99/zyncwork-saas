@@ -2,7 +2,6 @@
 
 namespace App\Features\Comment\Policies;
 
-
 use App\Features\Auth\Models\User;
 use App\Features\Comment\Models\Comment;
 use Illuminate\Auth\Access\HandlesAuthorization;

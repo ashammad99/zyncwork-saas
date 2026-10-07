@@ -7,6 +7,7 @@ use App\Features\Platform\Models\PlatformAdmin;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -34,7 +35,7 @@ class RouteRateLimitTest extends TestCase
         parent::tearDown();
     }
 
-    private function signup(int $i): \Illuminate\Testing\TestResponse
+    private function signup(int $i): TestResponse
     {
         $response = $this->post('/auth/register', [
             'company_name' => "Company {$i}",

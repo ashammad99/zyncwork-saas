@@ -20,7 +20,7 @@ class ClearCacheRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'type' => 'required|in:all,view,config,route,application'
+            'type' => 'required|in:all,view,config,route,application',
         ];
     }
 }

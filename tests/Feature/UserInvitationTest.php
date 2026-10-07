@@ -8,7 +8,6 @@ use App\Features\Auth\Models\User;
 use App\Features\Departments\Admin\Models\Department;
 use App\Features\Onboarding\Models\UserInvitation;
 use App\Features\Onboarding\Services\InvitationService;
-use Illuminate\Validation\ValidationException;
 use App\Features\Tenancy\Models\Tenant;
 use App\Mail\GeneralMail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,6 +15,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Testing\TestResponse;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 /**

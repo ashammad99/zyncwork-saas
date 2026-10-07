@@ -54,6 +54,6 @@ class RoleMiddleware
             }
         }
 
-        abort(403, 'Unauthorized. Required role: ' . implode(' or ', $roles));
+        abort(403, 'Unauthorized. Required role: '.implode(' or ', $roles));
     }
 }

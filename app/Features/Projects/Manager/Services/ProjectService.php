@@ -35,12 +35,12 @@ class ProjectService
             ->where('department_id', $manager->department_id)
             ->with(['owner:id,name'])
             ->when(
-                !empty($filters['status']),
-                fn($q) => $q->where('status', $filters['status'])
+                ! empty($filters['status']),
+                fn ($q) => $q->where('status', $filters['status'])
             )
             ->when(
-                !empty($filters['search']),
-                fn($q) => $q->where('name', 'like', '%' . $filters['search'] . '%')
+                ! empty($filters['search']),
+                fn ($q) => $q->where('name', 'like', '%'.$filters['search'].'%')
             )
             ->withCount('tasks')
             ->orderByDesc('created_at')
@@ -89,6 +89,7 @@ class ProjectService
     public function archive(Project $project): Project
     {
         $project->update(['status' => 'archived']);
+
         return $project;
     }
 
@@ -131,11 +132,11 @@ class ProjectService
     private function applyTaskFilters(Builder $query, array $filters): Builder
     {
         return $query
-            ->when(!empty($filters['search']), fn ($q) => $q->where('title', 'like', '%' . $filters['search'] . '%'))
-            ->when(!empty($filters['status']), fn ($q) => $q->where('status', $filters['status']))
-            ->when(!empty($filters['priority']), fn ($q) => $q->where('priority', $filters['priority']))
-            ->when(!empty($filters['assignee_id']), fn ($q) => $q->where('assignee_id', $filters['assignee_id']))
-            ->when(!empty($filters['due_date']), fn ($q) => $q->whereDate('due_date', $filters['due_date']));
+            ->when(! empty($filters['search']), fn ($q) => $q->where('title', 'like', '%'.$filters['search'].'%'))
+            ->when(! empty($filters['status']), fn ($q) => $q->where('status', $filters['status']))
+            ->when(! empty($filters['priority']), fn ($q) => $q->where('priority', $filters['priority']))
+            ->when(! empty($filters['assignee_id']), fn ($q) => $q->where('assignee_id', $filters['assignee_id']))
+            ->when(! empty($filters['due_date']), fn ($q) => $q->whereDate('due_date', $filters['due_date']));
     }
 
     /**
@@ -210,7 +211,7 @@ class ProjectService
     {
         [$today, $endOfWeek, $endOfNextWeek] = $this->timelineBoundaries();
 
-        $sql = "CASE
+        $sql = 'CASE
             WHEN tasks.status = ? THEN 7
             WHEN tasks.due_date IS NULL THEN 6
             WHEN date(tasks.due_date) < ? THEN 1
@@ -218,7 +219,7 @@ class ProjectService
             WHEN date(tasks.due_date) <= ? THEN 3
             WHEN date(tasks.due_date) <= ? THEN 4
             ELSE 5
-        END";
+        END';
 
         return [$sql, [Task::STATUS_COMPLETED, $today, $today, $endOfWeek, $endOfNextWeek]];
     }

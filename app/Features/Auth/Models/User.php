@@ -2,18 +2,20 @@
 
 namespace App\Features\Auth\Models;
 
+use App\Core\Tenancy\BelongsToTenant;
 use App\Features\Departments\Admin\Models\Department;
 use App\Features\Notification\Admin\Models\Notification;
 use App\Features\Projects\Admin\Models\Project;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use App\Features\TaskAdmin\Models\Task;
 use App\Features\TimeLog\Models\TimeLog;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Core\Tenancy\BelongsToTenant;
 use App\Mail\GeneralMail;
 use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
@@ -22,7 +24,6 @@ use Illuminate\Support\Str;
 class User extends Authenticatable implements MustVerifyEmail
 {
     use BelongsToTenant;
-
     use HasFactory, MustVerifyEmailTrait, Notifiable;
 
     /**
@@ -114,8 +115,8 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
-            'password'          => 'hashed',
-            'is_active'         => 'boolean',
+            'password' => 'hashed',
+            'is_active' => 'boolean',
         ];
     }
 
@@ -136,7 +137,8 @@ class User extends Authenticatable implements MustVerifyEmail
             // Pivot rows carry the tenant; a composite foreign key rejects cross-tenant links.
             ->withPivotValue('tenant_id', $this->tenant_id);
     }
-    public function department(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+
+    public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
     }
@@ -148,7 +150,6 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function assignedTasks(): HasMany
     {
-        return $this->hasMany(\App\Features\TaskAdmin\Models\Task::class, 'assignee_id');
+        return $this->hasMany(Task::class, 'assignee_id');
     }
-
 }

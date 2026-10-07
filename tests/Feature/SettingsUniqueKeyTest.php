@@ -4,9 +4,9 @@ namespace Tests\Feature;
 
 use App\Core\Tenancy\TenantContext;
 use App\Features\Auth\Models\User;
-use App\Features\Tenancy\Models\Tenant;
 use App\Features\SystemSettings\Admin\Models\Setting;
 use App\Features\SystemSettings\Admin\Services\SettingsService;
+use App\Features\Tenancy\Models\Tenant;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -71,7 +71,7 @@ class SettingsUniqueKeyTest extends TestCase
     {
         return User::create([
             'name' => 'Test User',
-            'email' => uniqid('user_') . '@example.com',
+            'email' => uniqid('user_').'@example.com',
             'password' => Hash::make('password'),
             'role' => $role,
             'is_active' => true,

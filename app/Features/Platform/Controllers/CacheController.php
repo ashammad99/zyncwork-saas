@@ -28,9 +28,10 @@ class CacheController extends BaseController
     {
         try {
             $msg = $this->cacheService->clearCaches($request->validated()['type'], $request->user('platform'));
+
             return redirect()->back()->with('success', $msg);
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Failed to clear cache: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to clear cache: '.$e->getMessage());
         }
     }
 }

@@ -60,7 +60,7 @@ class DatabaseSeeder extends Seeder
                     'profile_image' => null,
                     'last_login_at' => null,
                     'last_login_ip' => null,
-                ]
+                ],
             ]
         );
 

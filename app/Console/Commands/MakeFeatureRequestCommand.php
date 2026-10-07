@@ -9,26 +9,28 @@ use Illuminate\Support\Str;
 class MakeFeatureRequestCommand extends Command
 {
     protected $signature = 'make:feature:request {feature : Feature name} {path* : [Role] [Name] (Name defaults to Request)}';
+
     protected $description = 'Create a form request inside a feature';
 
     public function handle(): void
     {
         $feature = $this->argument('feature');
-        $path    = $this->argument('path');
+        $path = $this->argument('path');
 
         // Resolve name and role from path
         $name = Str::studly(array_pop($path));
-        $name = Str::endsWith($name, 'Request') ? $name : $name . 'Request';
+        $name = Str::endsWith($name, 'Request') ? $name : $name.'Request';
 
-        $rolePath  = !empty($path) ? implode('/', $path) : '';
-        $fullPath  = !empty($rolePath) ? "{$feature}/{$rolePath}" : $feature;
+        $rolePath = ! empty($path) ? implode('/', $path) : '';
+        $fullPath = ! empty($rolePath) ? "{$feature}/{$rolePath}" : $feature;
 
-        $parts     = array_map(fn($p) => Str::studly($p), explode('/', $fullPath));
-        $namespace = 'App\\Features\\' . implode('\\', $parts) . '\\Requests';
-        $filePath  = app_path('Features/' . implode('/', $parts) . "/Requests/{$name}.php");
+        $parts = array_map(fn ($p) => Str::studly($p), explode('/', $fullPath));
+        $namespace = 'App\\Features\\'.implode('\\', $parts).'\\Requests';
+        $filePath = app_path('Features/'.implode('/', $parts)."/Requests/{$name}.php");
 
         if (File::exists($filePath)) {
             $this->error("Request [{$name}] already exists!");
+
             return;
         }
 

@@ -2,8 +2,8 @@
 
 namespace App\Features\TaskManager\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
 use App\Core\Tenancy\TenantRule;
+use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateTaskRequest extends FormRequest
 {

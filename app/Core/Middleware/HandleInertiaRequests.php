@@ -3,12 +3,12 @@
 namespace App\Core\Middleware;
 
 use App\Features\Auth\Models\User;
+use App\Features\Notification\Admin\Models\Notification;
+use App\Features\Notification\User\Models\Notification as UserNotification;
 use App\Features\Platform\Models\PlatformImpersonation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
-use App\Features\Notification\Admin\Models\Notification as AdminNotification;
-use App\Features\Notification\User\Models\Notification as UserNotification;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -43,53 +43,54 @@ class HandleInertiaRequests extends Middleware
 
             // Auth data — powers useAuth(), useUser(), useIsAuthenticated(), useHasRole(), useHasPermission()
             // Tenant users only: on the platform host $request->user() is a PlatformAdmin (see 'platform').
-            'auth' => fn() => [
+            'auth' => fn () => [
                 'check' => $this->tenantUser($request) !== null,
-                'user'  => ($user = $this->tenantUser($request)) ? array_merge(
-                    $user->only(['id', 'name', 'email', 'phone','role', 'email_verified_at', 'created_at']),
+                'user' => ($user = $this->tenantUser($request)) ? array_merge(
+                    $user->only(['id', 'name', 'email', 'phone', 'role', 'email_verified_at', 'created_at']),
                     [
                         // Secure Profile Image URL
                         'profile_image' => $user->profile_image
                             ? ($user->role === 'admin'
-                                ? '/admin/profile-image/' . $user->profile_image
-                                : '/user/profile-image/' . $user->profile_image)
+                                ? '/admin/profile-image/'.$user->profile_image
+                                : '/user/profile-image/'.$user->profile_image)
                             : null,
                         // Include roles/permissions if the relationships exist on the User model
-                        'roles'                      => method_exists($user, 'roles') ? $user->roles : [],
-                        'permissions'                => method_exists($user, 'permissions') ? $user->permissions : [],
+                        'roles' => method_exists($user, 'roles') ? $user->roles : [],
+                        'permissions' => method_exists($user, 'permissions') ? $user->permissions : [],
                         'unread_notifications_count' => $this->notificationQuery($request)?->whereNull('read_at')->count() ?? 0,
                     ]
                 ) : null,
             ],
-            'notifications' => fn() => $this->notificationQuery($request)?->latest()->limit(5)->get() ?? [],
+            'notifications' => fn () => $this->notificationQuery($request)?->latest()->limit(5)->get() ?? [],
 
             // Platform console only: the signed-in platform admin.
-            'platform' => fn() => ($admin = Auth::guard('platform')->user())
+            'platform' => fn () => ($admin = Auth::guard('platform')->user())
                 ? $admin->only(['id', 'name', 'email', 'capabilities'])
                 : null,
 
             // Tenant host during a support session — drives the banner in MainLayout.
-            'impersonation' => fn() => $this->impersonation($request),
+            'impersonation' => fn () => $this->impersonation($request),
 
             // Flash messages — powers useFlash(), useFlashSuccess(), Toast component
-            'flash' => fn() => [
+            'flash' => fn () => [
                 'success' => $request->session()->get('success'),
-                'error'   => $request->session()->get('error'),
+                'error' => $request->session()->get('error'),
                 'warning' => $request->session()->get('warning'),
-                'info'    => $request->session()->get('info'),
+                'info' => $request->session()->get('info'),
                 'message' => $request->session()->get('message'),
             ],
 
             // CSRF token — powers useCsrfToken()
-            //'csrf_token' => csrf_token(),
+            // 'csrf_token' => csrf_token(),
 
             // App config — powers useAppConfig()
-            'app' => fn() => [
+            'app' => fn () => [
                 'name' => config('app.name'),
-                'env'  => config('app.env'),
+                'env' => config('app.env'),
             ],
         ]);
     }
+
     /**
      * Notifications live in two custom tables split by role.
      */
@@ -102,8 +103,8 @@ class HandleInertiaRequests extends Middleware
         }
 
         $model = $user->role === 'admin'
-            ? \App\Features\Notification\Admin\Models\Notification::class
-            : \App\Features\Notification\User\Models\Notification::class;
+            ? Notification::class
+            : UserNotification::class;
 
         return $model::where('user_id', $user->id);
     }

@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Features\ActivityLog\Events\ActivityLogged;
+use App\Features\ActivityLog\Listeners\CreateActivityLogRecord;
+use App\Features\Notification\Events\NotificationCreated;
+use App\Features\Notification\Listeners\CreateNotificationRecord;
 use App\Features\Platform\Models\PlatformAdmin;
 use App\Features\Platform\Models\PlatformImpersonation;
 use App\Features\Platform\Services\ImpersonationService;
@@ -12,6 +16,7 @@ use App\Features\SystemSettings\Admin\Policies\SettingPolicy;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -39,14 +44,14 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Project::class, ProjectPolicy::class);
         Gate::policy(Setting::class, SettingPolicy::class);
 
-        \Illuminate\Support\Facades\Event::listen(
-            \App\Features\Notification\Events\NotificationCreated::class,
-            [\App\Features\Notification\Listeners\CreateNotificationRecord::class, 'handle']
+        Event::listen(
+            NotificationCreated::class,
+            [CreateNotificationRecord::class, 'handle']
         );
 
-        \Illuminate\Support\Facades\Event::listen(
-            \App\Features\ActivityLog\Events\ActivityLogged::class,
-            [\App\Features\ActivityLog\Listeners\CreateActivityLogRecord::class, 'handle']
+        Event::listen(
+            ActivityLogged::class,
+            [CreateActivityLogRecord::class, 'handle']
         );
 
         // Platform powers (can:platform.<capability>). Tenant users never pass these.
@@ -55,7 +60,7 @@ class AppServiceProvider extends ServiceProvider
         }
 
         // Signing out of a support session (or being signed out) ends it.
-        \Illuminate\Support\Facades\Event::listen(Logout::class, function (Logout $event) {
+        Event::listen(Logout::class, function (Logout $event) {
             if ($event->guard !== 'web' || ! request()->hasSession()) {
                 return;
             }

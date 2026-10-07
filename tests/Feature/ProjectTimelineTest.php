@@ -40,7 +40,7 @@ class ProjectTimelineTest extends TestCase
     {
         return User::create(array_merge([
             'name' => 'Test User',
-            'email' => uniqid('user_') . '@example.com',
+            'email' => uniqid('user_').'@example.com',
             'password' => Hash::make('password'),
             'role' => 'employee',
             'is_active' => true,
@@ -83,7 +83,7 @@ class ProjectTimelineTest extends TestCase
 
     private function timelineUrl(int $projectId, array $query = [], string $portal = 'manager'): string
     {
-        return "/{$portal}/projects/{$projectId}?" . http_build_query(array_merge(['tab' => 'timeline'], $query));
+        return "/{$portal}/projects/{$projectId}?".http_build_query(array_merge(['tab' => 'timeline'], $query));
     }
 
     // ── Access & scoping ────────────────────────────────────────────────────
@@ -171,13 +171,13 @@ class ProjectTimelineTest extends TestCase
         [, $manager, $project] = $this->makeDepartmentManagerProject();
 
         $expected = [
-            'overdue'     => $this->makeTask($project, $manager, ['title' => 'Overdue', 'due_date' => '2026-09-08'])->id,
-            'today'       => $this->makeTask($project, $manager, ['title' => 'Today', 'due_date' => '2026-09-09'])->id,
-            'this_week'   => $this->makeTask($project, $manager, ['title' => 'This week', 'due_date' => '2026-09-11'])->id,
-            'next_week'   => $this->makeTask($project, $manager, ['title' => 'Next week', 'due_date' => '2026-09-16'])->id,
-            'later'       => $this->makeTask($project, $manager, ['title' => 'Later', 'due_date' => '2026-10-01'])->id,
+            'overdue' => $this->makeTask($project, $manager, ['title' => 'Overdue', 'due_date' => '2026-09-08'])->id,
+            'today' => $this->makeTask($project, $manager, ['title' => 'Today', 'due_date' => '2026-09-09'])->id,
+            'this_week' => $this->makeTask($project, $manager, ['title' => 'This week', 'due_date' => '2026-09-11'])->id,
+            'next_week' => $this->makeTask($project, $manager, ['title' => 'Next week', 'due_date' => '2026-09-16'])->id,
+            'later' => $this->makeTask($project, $manager, ['title' => 'Later', 'due_date' => '2026-10-01'])->id,
             'no_due_date' => $this->makeTask($project, $manager, ['title' => 'Undated', 'due_date' => null])->id,
-            'completed'   => $this->makeTask($project, $manager, [
+            'completed' => $this->makeTask($project, $manager, [
                 'title' => 'Done', 'due_date' => '2026-09-11', 'status' => Task::STATUS_COMPLETED,
             ])->id,
         ];
@@ -244,14 +244,14 @@ class ProjectTimelineTest extends TestCase
         // "Now" is frozen at Wednesday 2026-09-09.
         // Calendar week: Mon 2026-09-07 → Sun 2026-09-13. Next week ends Sun 2026-09-20.
         return [
-            'yesterday is overdue'                  => ['2026-09-08', 'overdue'],
-            'start of this week (past) is overdue'  => ['2026-09-07', 'overdue'],
-            'today is today'                        => ['2026-09-09', 'today'],
-            'tomorrow is this week'                 => ['2026-09-10', 'this_week'],
-            'end of this week is this week'         => ['2026-09-13', 'this_week'],
-            'start of next week is next week'       => ['2026-09-14', 'next_week'],
-            'end of next week is next week'         => ['2026-09-20', 'next_week'],
-            'day after next week is later'          => ['2026-09-21', 'later'],
+            'yesterday is overdue' => ['2026-09-08', 'overdue'],
+            'start of this week (past) is overdue' => ['2026-09-07', 'overdue'],
+            'today is today' => ['2026-09-09', 'today'],
+            'tomorrow is this week' => ['2026-09-10', 'this_week'],
+            'end of this week is this week' => ['2026-09-13', 'this_week'],
+            'start of next week is next week' => ['2026-09-14', 'next_week'],
+            'end of next week is next week' => ['2026-09-20', 'next_week'],
+            'day after next week is later' => ['2026-09-21', 'later'],
         ];
     }
 
@@ -413,7 +413,7 @@ class ProjectTimelineTest extends TestCase
         $nextPageUrl = $response->viewData('page')['props']['timeline']['tasks']['next_page_url'];
 
         $this->assertStringContainsString('tab=timeline', $nextPageUrl);
-        $this->assertStringContainsString('assignee_id=' . $employee->id, $nextPageUrl);
+        $this->assertStringContainsString('assignee_id='.$employee->id, $nextPageUrl);
         $this->assertStringContainsString('page=2', $nextPageUrl);
     }
 
@@ -557,7 +557,7 @@ class ProjectTimelineTest extends TestCase
             for ($i = 0; $i < $count; $i++) {
                 $employee = $this->makeUser(['role' => 'employee', 'department_id' => $department->id]);
                 $task = $this->makeTask($target, $manager, [
-                    'due_date' => '2026-09-1' . ($i % 9),
+                    'due_date' => '2026-09-1'.($i % 9),
                     'assignee_id' => $employee->id,
                 ]);
                 TimeLog::create([
@@ -589,7 +589,7 @@ class ProjectTimelineTest extends TestCase
             count($smallQueries),
             count($bigQueries),
             'Timeline query count must not grow with task count: '
-                . count($smallQueries) . ' vs ' . count($bigQueries)
+                .count($smallQueries).' vs '.count($bigQueries)
         );
     }
 }

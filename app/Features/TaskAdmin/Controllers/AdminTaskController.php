@@ -3,7 +3,7 @@
 namespace App\Features\TaskAdmin\Controllers;
 
 use App\Core\BaseController;
-
+use App\Features\ActivityLog\Models\ActivityLog;
 use App\Features\Auth\Models\User;
 use App\Features\Departments\Admin\Models\Department;
 use App\Features\Projects\Admin\Models\Project;
@@ -16,7 +16,6 @@ use App\Features\TaskAdmin\Services\TaskService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
-use App\Features\ActivityLog\Models\ActivityLog;
 
 class AdminTaskController extends BaseController
 {
@@ -34,16 +33,16 @@ class AdminTaskController extends BaseController
 
         $tasks = Task::query()
             ->with(['project.department', 'assignee', 'creator', 'dependency'])
-            ->when($filters['search'] ?? null, fn($q, $s) => $q->where('title', 'like', "%{$s}%")
+            ->when($filters['search'] ?? null, fn ($q, $s) => $q->where('title', 'like', "%{$s}%")
             )
-            ->when($filters['status'] ?? null, fn($q, $s) => $q->where('status', $s))
-            ->when($filters['priority'] ?? null, fn($q, $p) => $q->where('priority', $p))
-            ->when($filters['project_id'] ?? null, fn($q, $p) => $q->where('project_id', $p))
-            ->when($filters['department_id'] ?? null, fn($q, $d) => $q->whereHas('project', fn($pq) => $pq->where('department_id', $d))
+            ->when($filters['status'] ?? null, fn ($q, $s) => $q->where('status', $s))
+            ->when($filters['priority'] ?? null, fn ($q, $p) => $q->where('priority', $p))
+            ->when($filters['project_id'] ?? null, fn ($q, $p) => $q->where('project_id', $p))
+            ->when($filters['department_id'] ?? null, fn ($q, $d) => $q->whereHas('project', fn ($pq) => $pq->where('department_id', $d))
             )
-            ->when($filters['assignee_id'] ?? null, fn($q, $a) => $q->where('assignee_id', $a))
-            ->when($filters['due_date_from'] ?? null, fn($q, $d) => $q->whereDate('due_date', '>=', $d))
-            ->when($filters['due_date_to'] ?? null, fn($q, $d) => $q->whereDate('due_date', '<=', $d))
+            ->when($filters['assignee_id'] ?? null, fn ($q, $a) => $q->where('assignee_id', $a))
+            ->when($filters['due_date_from'] ?? null, fn ($q, $d) => $q->whereDate('due_date', '>=', $d))
+            ->when($filters['due_date_to'] ?? null, fn ($q, $d) => $q->whereDate('due_date', '<=', $d))
             ->latest()
             ->paginate(20)
             ->withQueryString();
@@ -83,7 +82,7 @@ class AdminTaskController extends BaseController
             'timeLogs.user',
             'comments.user',
             'comments.replies.user',
-//            'attachments.uploader',
+            //            'attachments.uploader',
         ]);
 
         $activityLogs = ActivityLog::where('model_type', Task::class)
@@ -99,23 +98,23 @@ class AdminTaskController extends BaseController
 
         return Inertia::render('(portals)/admin/tasks/show', [
             'task' => $task,
-            'priorities'   => ['low', 'medium', '   high', 'urgent'],
+            'priorities' => ['low', 'medium', '   high', 'urgent'],
             'activityLogs' => $activityLogs,
             'timeLogs' => $timeLogs,
-            'currentUser'  => auth()->user(),
-            'tasks'        => Task::select('id', 'title')->where('id', '!=', $task->id)->get(), // ← this was missing
+            'currentUser' => auth()->user(),
+            'tasks' => Task::select('id', 'title')->where('id', '!=', $task->id)->get(), // ← this was missing
             'users' => User::orderBy('name')->get(['id', 'name']),
             'statuses' => Task::STATUSES,
-            'projects'     => Project::select('id', 'name')->orderBy('name')->get(),
+            'projects' => Project::select('id', 'name')->orderBy('name')->get(),
             'canTransition' => [
-                'to_todo' => !in_array($task->status, [Task::STATUS_BACKLOG, Task::STATUS_TODO]),
+                'to_todo' => ! in_array($task->status, [Task::STATUS_BACKLOG, Task::STATUS_TODO]),
                 'to_in_progress' => $task->status === Task::STATUS_TODO,
                 'to_in_review' => $task->status === Task::STATUS_IN_PROGRESS,
                 'to_completed' => $task->status === Task::STATUS_IN_REVIEW,
                 'reactivate' => $task->status === Task::STATUS_COMPLETED,
             ],
-            'comments'      => $task->comments->whereNull('parent_id')->values(),
-            'mentionableUsers' => \App\Features\Auth\Models\User::query()
+            'comments' => $task->comments->whereNull('parent_id')->values(),
+            'mentionableUsers' => User::query()
                 ->where('is_active', true)
                 ->where('id', '!=', auth()->id())
                 ->orderBy('name')

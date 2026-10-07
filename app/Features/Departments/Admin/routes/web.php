@@ -1,9 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-
-// Departments/Admin web routes
 use App\Features\Departments\Admin\Controllers\DepartmentController;
+// Departments/Admin web routes
+use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'role:admin'])
     ->group(function () {

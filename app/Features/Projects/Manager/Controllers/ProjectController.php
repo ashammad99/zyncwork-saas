@@ -3,30 +3,29 @@
 namespace App\Features\Projects\Manager\Controllers;
 
 use App\Core\BaseController;
+use App\Features\Auth\Models\User;
+use App\Features\Projects\Admin\Models\Project;
 use App\Features\Projects\Manager\Requests\StoreProjectRequest;
-use App\Features\Projects\Manager\Services\ProjectService;
 use App\Features\Projects\Manager\Requests\UpdateProjectRequest;
-
+use App\Features\Projects\Manager\Services\ProjectService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
-use App\Features\Projects\Admin\Models\Project;
+
 class ProjectController extends BaseController
 {
-    public function __construct(private readonly ProjectService $projectService)
-    {
-    }
+    public function __construct(private readonly ProjectService $projectService) {}
 
     /**
      * GET /manager/projects
      */
     public function index(Request $request): Response
     {
-//        dd([
-//            'role'          => $request->user()->role,
-//            'department_id' => $request->user()->department_id,
-//        ]);
+        //        dd([
+        //            'role'          => $request->user()->role,
+        //            'department_id' => $request->user()->department_id,
+        //        ]);
 
         $this->authorize('viewAny', Project::class);
 
@@ -37,7 +36,7 @@ class ProjectController extends BaseController
 
         return Inertia::render('(portals)/manager/projects/page', [
             'projects' => $projects,
-            'filters'  => $request->only(['status', 'search']),
+            'filters' => $request->only(['status', 'search']),
         ]);
     }
 
@@ -95,7 +94,7 @@ class ProjectController extends BaseController
             'statusCounts' => $this->projectService->getProjectStatusCounts($project),
             'totalMinutes' => $this->projectService->getProjectTotalMinutes($project),
             'filters' => $filters,
-            'employees' => \App\Features\Auth\Models\User::query()
+            'employees' => User::query()
                 ->where('department_id', $project->department_id)
                 ->where('is_active', true)
                 ->orderBy('name')

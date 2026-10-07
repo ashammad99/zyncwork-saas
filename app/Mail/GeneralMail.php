@@ -41,7 +41,7 @@ class GeneralMail extends Mailable implements ShouldQueue
         return new Content(
             markdown: 'emails.layout',
             with: array_merge($this->data, [
-                'content_view' => $this->contentView
+                'content_view' => $this->contentView,
             ]),
         );
     }

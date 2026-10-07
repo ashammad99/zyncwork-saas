@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Testing\TestResponse;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
@@ -49,7 +50,7 @@ class PlatformTwoFactorTest extends TestCase
         return app(Google2FA::class)->getCurrentOtp($secret);
     }
 
-    private function passwordStep(): \Illuminate\Testing\TestResponse
+    private function passwordStep(): TestResponse
     {
         return $this->post($this->platform('/login'), ['email' => $this->admin->email, 'password' => 'platform-password']);
     }
@@ -344,7 +345,7 @@ class PlatformTwoFactorTest extends TestCase
         preg_match('/<code[^>]*>([A-Z2-7 ]+)<\/code>/', $page, $match);
         $secret = str_replace(' ', '', $match[1]);
 
-        $this->post($this->platform('/two-factor/setup'), ['code' => '000000' === $this->otp($secret) ? '111111' : '000000'])
+        $this->post($this->platform('/two-factor/setup'), ['code' => $this->otp($secret) === '000000' ? '111111' : '000000'])
             ->assertSessionHasErrors('code');
         $this->assertFalse($this->admin->fresh()->hasTwoFactor());
 

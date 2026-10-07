@@ -4,13 +4,13 @@ namespace App\Features\TimeLog\Controllers;
 
 use App\Core\BaseController;
 use App\Features\Auth\Models\User;
-use App\Features\TimeLog\Models\TimeLog;
 use App\Features\TimeLog\Requests\BulkApproveTimeLogsRequest;
 use App\Features\TimeLog\Services\TimeLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+
 class AdminTimeLogController extends BaseController
 {
     public function __construct(
@@ -26,7 +26,7 @@ class AdminTimeLogController extends BaseController
         ]);
 
         return Inertia::render('(portals)/admin/timesheets/Index', [
-            'logs'    => $this->timeLogService->getAllPaginated($filters),
+            'logs' => $this->timeLogService->getAllPaginated($filters),
             'filters' => $filters,
             'options' => $this->timeLogService->getAdminFilterOptions(),
         ]);
@@ -46,7 +46,7 @@ class AdminTimeLogController extends BaseController
         $period = $request->input('period', 'week'); // week | month
 
         return Inertia::render('(portals)/admin/timesheets/Reports', [
-            'period'  => $period,
+            'period' => $period,
             'reports' => $this->timeLogService->getReports($period),
         ]);
     }

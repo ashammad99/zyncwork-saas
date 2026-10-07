@@ -2,9 +2,9 @@
 
 namespace App\Features\Projects\Admin\Requests;
 
+use App\Core\Tenancy\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use App\Core\Tenancy\TenantRule;
 
 class UpdateProjectRequest extends FormRequest
 {

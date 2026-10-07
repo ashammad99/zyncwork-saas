@@ -2,16 +2,17 @@
 
 namespace App\Features\TimeLog\Controllers;
 
-use Symfony\Component\HttpFoundation\StreamedResponse;
-use App\Features\TimeLog\Services\TimeLogExportService;
 use App\Core\BaseController;
+use App\Features\TimeLog\Services\TimeLogExportService;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TimeLogExportController extends BaseController
 {
     public function __construct(
         protected TimeLogExportService $exportService,
     ) {}
+
     /**
      * Admin: export any time logs, all filters available.
      */
@@ -43,6 +44,7 @@ class TimeLogExportController extends BaseController
             $request->user()->department_id,   // hard clamp — ignores any department_id param
         );
     }
+
     public function adminPdf(Request $request)
     {
         $filters = $request->only([
@@ -51,7 +53,7 @@ class TimeLogExportController extends BaseController
         ]);
 
         return $this->exportService->makePdf($filters)
-            ->download('time-logs_' . now()->format('Y-m-d') . '.pdf');
+            ->download('time-logs_'.now()->format('Y-m-d').'.pdf');
     }
 
     public function managerPdf(Request $request)
@@ -61,6 +63,6 @@ class TimeLogExportController extends BaseController
         $filters = $request->only(['user_id', 'entry_type', 'approval', 'date_from', 'date_to']);
 
         return $this->exportService->makePdf($filters, $request->user()->department_id)
-            ->download('time-logs_' . now()->format('Y-m-d') . '.pdf');
+            ->download('time-logs_'.now()->format('Y-m-d').'.pdf');
     }
 }
