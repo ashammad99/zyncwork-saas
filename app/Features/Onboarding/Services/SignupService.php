@@ -37,6 +37,9 @@ class SignupService extends BaseService
                     'is_active' => true,
                 ]);
 
+                // Receipts go here; kept separate so it outlives this admin.
+                $tenant->forceFill(['billing_email' => $user->email])->save();
+
                 event(new ActivityLogged($user, 'tenant_created', "{$tenant->name} signed up; {$user->email} is its first admin.", 'system'));
 
                 return $user;

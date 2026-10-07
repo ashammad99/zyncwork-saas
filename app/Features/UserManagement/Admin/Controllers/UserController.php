@@ -4,6 +4,7 @@ namespace App\Features\UserManagement\Admin\Controllers;
 
 use App\Core\BaseController;
 use App\Features\Auth\Models\User;
+use App\Features\Billing\Exceptions\SeatLimitReached;
 use App\Features\Departments\Admin\Models\Department;
 use App\Features\Onboarding\Models\UserInvitation;
 use App\Features\UserManagement\Admin\Requests\UpdateUserRequest;
@@ -52,7 +53,11 @@ class UserController extends BaseController
             return redirect()->back()->with('error', 'You cannot modify your own core privileges from this page.');
         }
 
-        $this->userService->updateUser($user, $request->validated());
+        try {
+            $this->userService->updateUser($user, $request->validated());
+        } catch (SeatLimitReached $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
 
         return redirect()->back()->with('success', 'User updated successfully.');
     }

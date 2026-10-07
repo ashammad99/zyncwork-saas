@@ -3,6 +3,7 @@
 namespace App\Features\UserManagement\Admin\Controllers;
 
 use App\Core\BaseController;
+use App\Features\Billing\Exceptions\SeatLimitReached;
 use App\Features\Onboarding\Models\UserInvitation;
 use App\Features\Onboarding\Services\InvitationService;
 use App\Features\UserManagement\Admin\Requests\StoreInvitationRequest;
@@ -18,7 +19,11 @@ class InvitationController extends BaseController
 
     public function store(StoreInvitationRequest $request)
     {
-        $invitation = $this->invitations->invite($request->user(), $request->validated());
+        try {
+            $invitation = $this->invitations->invite($request->user(), $request->validated());
+        } catch (SeatLimitReached $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
 
         return redirect()->back()->with('success', "Invitation sent to {$invitation->email}.");
     }

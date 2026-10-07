@@ -307,7 +307,7 @@ class PlatformConsoleTest extends TestCase
 
         $this->get($this->platform('/billing'))->assertInertia(fn (AssertableInertia $page) => $page
             ->component('(platform)/billing/Index')
-            ->where('tenants.0.plan', null));
+            ->where('tenants.0.plan', 'Trial'));
 
         $this->get($this->platform('/health'))->assertInertia(fn (AssertableInertia $page) => $page->component('(platform)/health/page'));
         $this->get($this->platform('/cache'))->assertInertia(fn (AssertableInertia $page) => $page->component('(platform)/cache/page'));
