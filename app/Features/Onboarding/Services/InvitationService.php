@@ -6,6 +6,8 @@ use App\Core\BaseService;
 use App\Core\Tenancy\TenantContext;
 use App\Features\ActivityLog\Events\ActivityLogged;
 use App\Features\Auth\Models\User;
+use App\Features\Billing\Exceptions\SeatLimitReached;
+use App\Features\Billing\Services\SeatGuard;
 use App\Features\Onboarding\Models\UserInvitation;
 use App\Features\Tenancy\Models\Tenant;
 use App\Mail\GeneralMail;
@@ -28,22 +30,31 @@ class InvitationService extends BaseService
 {
     public function __construct(
         protected TenantContext $tenantContext,
+        protected SeatGuard $seats,
     ) {}
 
-    // The per-tenant hourly limit is a route limiter (throttle:invitations), so
-    // that rejected attempts count too, not just the invites sent.
+    /**
+     * The per-tenant hourly limit is a route limiter (throttle:invitations), so
+     * that rejected attempts count too, not just the invites sent.
+     *
+     * @throws SeatLimitReached when every seat is used (an open invite holds one)
+     */
     public function invite(User $inviter, array $data): UserInvitation
     {
         $token = Str::random(64);
 
-        $invitation = UserInvitation::create([
-            'email' => Str::lower(trim($data['email'])),
-            'role' => $data['role'],
-            'department_id' => $data['department_id'] ?? null,
-            'invited_by' => $inviter->id,
-            'token_hash' => hash('sha256', $token),
-            'expires_at' => now()->addDays((int) config('onboarding.invitations.expire_days')),
-        ]);
+        $invitation = DB::transaction(function () use ($inviter, $data, $token) {
+            $this->seats->ensureCanAdd($inviter->tenant_id);
+
+            return UserInvitation::create([
+                'email' => Str::lower(trim($data['email'])),
+                'role' => $data['role'],
+                'department_id' => $data['department_id'] ?? null,
+                'invited_by' => $inviter->id,
+                'token_hash' => hash('sha256', $token),
+                'expires_at' => now()->addDays((int) config('onboarding.invitations.expire_days')),
+            ]);
+        });
 
         $this->sendInvite($invitation, $inviter, $token);
         event(new ActivityLogged($inviter, 'user_invited', "Invited {$invitation->email} as {$invitation->role}.", 'system'));
@@ -139,7 +150,7 @@ class InvitationService extends BaseService
      * Create the invited user (verified: the emailed link proves the address)
      * and use up the invite. Returns null when the invite is no longer open.
      *
-     * @throws ValidationException when the email has become taken meanwhile
+     * @throws ValidationException when the email has become taken meanwhile, or no seat is free
      */
     public function accept(string $token, array $data): ?User
     {
@@ -152,6 +163,15 @@ class InvitationService extends BaseService
         return $this->tenantContext->run($invitation->tenant_id, function () use ($invitation, $data) {
             try {
                 return DB::transaction(function () use ($invitation, $data) {
+                    // First, so the subscription row is locked before the invitation
+                    // row, in the same order as invite(). The plan may have lapsed or
+                    // lost seats since the invite was sent.
+                    try {
+                        $this->seats->ensureCanAdd($invitation->tenant_id, excludingInvitationId: $invitation->id);
+                    } catch (SeatLimitReached) {
+                        throw ValidationException::withMessages(['email' => 'This company has no free seats right now, so the invitation cannot be accepted yet. Please ask the person who invited you.']);
+                    }
+
                     // Claimed atomically, so two requests with the same link create one user.
                     $claimed = UserInvitation::whereKey($invitation->id)
                         ->whereNull('accepted_at')

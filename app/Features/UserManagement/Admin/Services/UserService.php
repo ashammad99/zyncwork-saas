@@ -5,13 +5,17 @@ namespace App\Features\UserManagement\Admin\Services;
 use App\Core\BaseService;
 use App\Features\ActivityLog\Events\ActivityLogged;
 use App\Features\Auth\Models\User;
+use App\Features\Billing\Exceptions\SeatLimitReached;
+use App\Features\Billing\Services\SeatGuard;
 use App\Features\Onboarding\Services\InvitationService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class UserService extends BaseService
 {
     public function __construct(
-        protected InvitationService $invitations
+        protected InvitationService $invitations,
+        protected SeatGuard $seats,
     ) {}
 
     /**
@@ -32,12 +36,15 @@ class UserService extends BaseService
     /**
      * Update user details and privileges.
      */
+    /**
+     * @throws SeatLimitReached when reactivating a user needs a seat the tenant doesn't have
+     */
     public function updateUser(User $user, array $data): User
     {
         $wasActive = $user->is_active;
         $wasAdmin = $user->role === 'admin';
 
-        $user->update([
+        $apply = fn () => $user->update([
             'name' => $data['name'],
             'email' => $data['email'],
             'phone' => $data['phone'] ?? null,
@@ -47,6 +54,16 @@ class UserService extends BaseService
             'department_id' => $data['department_id'] ?? null,
 
         ]);
+
+        // Only reactivation takes a seat; deactivating and other edits never check.
+        if (! $wasActive && $data['is_active']) {
+            DB::transaction(function () use ($user, $apply) {
+                $this->seats->ensureCanAdd($user->tenant_id);
+                $apply();
+            });
+        } else {
+            $apply();
+        }
 
         // Invitations carry the inviter's authority: an admin who is demoted or
         // suspended can no longer bring anyone in (findOpen also refuses them).
