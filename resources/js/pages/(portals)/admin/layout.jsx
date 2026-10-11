@@ -19,7 +19,8 @@ import {
     FolderKanban,
     CheckSquare,
     Clock,
-    TrendingDown
+    TrendingDown,
+    CreditCard
 } from "lucide-react";
 
 import MainLayout from "../../../Components/Layout/MainLayout";
@@ -70,6 +71,7 @@ export default function AdminLayout({ children }) {
         { name: "Tasks", href: "/admin/tasks",icon: CheckSquare },
         { name: "Time Logs", href: "/admin/timesheets", icon: Clock },
         { name: "Settings", href: "/admin/settings", icon: Settings,},
+        { name: "Billing", href: "/admin/billing", icon: CreditCard },
         { name: "Burndown", href: "/reports/burndown", icon: TrendingDown },
         { name: "Activity Logs", href: "/admin/activity-logs", icon: History, },
     ];

@@ -5,8 +5,10 @@ namespace App\Features\UserManagement\Admin\Controllers;
 use App\Core\BaseController;
 use App\Features\Auth\Models\User;
 use App\Features\Billing\Exceptions\SeatLimitReached;
+use App\Features\Billing\Services\SeatGuard;
 use App\Features\Departments\Admin\Models\Department;
 use App\Features\Onboarding\Models\UserInvitation;
+use App\Features\Tenancy\Models\Tenant;
 use App\Features\UserManagement\Admin\Requests\UpdateUserRequest;
 use App\Features\UserManagement\Admin\Services\UserService;
 use Illuminate\Http\Request;
@@ -16,7 +18,8 @@ use Inertia\Inertia;
 class UserController extends BaseController
 {
     public function __construct(
-        protected UserService $userService
+        protected UserService $userService,
+        protected SeatGuard $seats,
     ) {}
 
     /**
@@ -41,7 +44,22 @@ class UserController extends BaseController
                 ]),
 
             'filters' => $request->only(['search']),
+            // For the "no free seats" banner, which links to the billing page.
+            'seatStatus' => $this->seatStatus($request->user()->tenant),
         ]);
+    }
+
+    /** @return array{seats: int, used: int, can_add_seats: bool} */
+    private function seatStatus(Tenant $tenant): array
+    {
+        // Queried, not the cached relation: the status may have changed since the tenant was loaded.
+        $subscription = $tenant->subscription()->first();
+
+        return [
+            'seats' => $subscription?->seats ?? 0,
+            'used' => $this->seats->usage($tenant->id)['used'],
+            'can_add_seats' => (bool) $subscription?->canAddSeats(),
+        ];
     }
 
     /**

@@ -43,18 +43,31 @@ class SeatGuard extends BaseService
 
         if (! $subscription->canAddSeats()) {
             throw new SeatLimitReached($subscription->trialExpired()
-                ? 'Your trial has ended, so no new users can be added. Choose a plan to continue adding users.'
-                : 'Your plan is not active, so no new users can be added. Please update your billing details.');
+                ? 'Your trial has ended, so no new users can be added. Choose a plan to continue adding users. See Billing for details.'
+                : 'Your plan is not active, so no new users can be added. Please update your billing details. See Billing for details.');
         }
 
-        $used = $this->tenantContext->run($tenantId, fn () => User::where('is_active', true)->count()
-            + UserInvitation::open()
-                ->when($excludingInvitationId, fn ($query) => $query->whereKeyNot($excludingInvitationId))
-                ->count());
-
-        if ($used + 1 > $subscription->seats) {
+        if ($this->usage($tenantId, $excludingInvitationId)['used'] + 1 > $subscription->seats) {
             throw new SeatLimitReached("Your plan includes {$subscription->seats} ".Str::plural('seat', $subscription->seats)
-                .', and all of them are in use (active users and pending invitations). Deactivate a user, revoke an invitation, or add seats.');
+                .', and all of them are in use (active users and pending invitations). Deactivate a user, revoke an invitation, or add seats. See Billing for details.');
         }
+    }
+
+    /**
+     * Seats in use, counted the one way enforcement counts them, so the
+     * billing page and the limit can never disagree.
+     *
+     * @return array{active: int, pending: int, used: int}
+     */
+    public function usage(int $tenantId, ?int $excludingInvitationId = null): array
+    {
+        return $this->tenantContext->run($tenantId, function () use ($excludingInvitationId) {
+            $active = User::where('is_active', true)->count();
+            $pending = UserInvitation::open()
+                ->when($excludingInvitationId, fn ($query) => $query->whereKeyNot($excludingInvitationId))
+                ->count();
+
+            return ['active' => $active, 'pending' => $pending, 'used' => $active + $pending];
+        });
     }
 }

@@ -51,6 +51,15 @@ class EnforceImpersonation
         'password.update',
     ];
 
+    /**
+     * Routes that change where a tenant's billing mail goes (and, later, take
+     * its data out). Not user management, but support has no business doing
+     * either while signed in as a customer: blocked outright as well.
+     */
+    private const BILLING_ROUTES = [
+        'admin.billing.email.update',
+    ];
+
     public function __construct(
         protected ImpersonationService $impersonations,
         protected PlatformAuditLogger $audit,
@@ -122,7 +131,8 @@ class EnforceImpersonation
         $name = $request->route()?->getName();
 
         return in_array($name, self::OWN_CREDENTIAL_ROUTES, true)
-            || in_array($name, self::USER_MANAGEMENT_ROUTES, true);
+            || in_array($name, self::USER_MANAGEMENT_ROUTES, true)
+            || in_array($name, self::BILLING_ROUTES, true);
     }
 
     /** @return array<string, mixed> */

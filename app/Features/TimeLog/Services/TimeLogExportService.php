@@ -3,6 +3,7 @@
 namespace App\Features\TimeLog\Services;
 
 use App\Core\BaseService;
+use App\Core\Support\CsvCell;
 use App\Features\TimeLog\Models\TimeLog;
 use Barryvdh\DomPDF\PDF;
 use Illuminate\Database\Eloquent\Builder;
@@ -34,7 +35,8 @@ class TimeLogExportService extends BaseService
 
             $query->chunk(500, function ($logs) use ($out) {
                 foreach ($logs as $log) {
-                    fputcsv($out, [
+                    // Names, titles and notes are typed by users: never let them run as formulas.
+                    fputcsv($out, CsvCell::row([
                         $log->user?->name,
                         $log->user?->email,
                         $log->task?->project?->department?->name,
@@ -49,7 +51,7 @@ class TimeLogExportService extends BaseService
                         $log->notes,
                         $log->approved_by ? 'yes' : 'no',
                         $log->approvedBy?->name,
-                    ]);
+                    ]));
                 }
             });
 
