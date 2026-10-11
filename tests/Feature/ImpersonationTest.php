@@ -372,6 +372,27 @@ class ImpersonationTest extends TestCase
         }
     }
 
+    public function test_billing_writes_are_blocked_while_acting_as_a_tenant_admin(): void
+    {
+        $tenantAdmin = $this->makeUser('admin');
+        $this->tenant->forceFill(['billing_email' => 'accounts@example.com'])->save();
+        $this->get($this->requestSession($tenantAdmin))->assertRedirect();
+
+        // Viewing is fine: support may need to see what the customer sees.
+        $this->get('/admin/billing')->assertOk();
+
+        $writes = collect(app('router')->getRoutes()->getRoutes())
+            ->filter(fn ($route) => str_starts_with((string) $route->getName(), 'admin.billing.'))
+            ->reject(fn ($route) => in_array('GET', $route->methods(), true));
+        $this->assertCount(1, $writes);
+
+        foreach ($writes as $route) {
+            $this->call($route->methods()[0], '/'.$route->uri(), ['billing_email' => 'support@evil.test'])->assertForbidden();
+        }
+
+        $this->assertSame('accounts@example.com', $this->tenant->fresh()->billing_email);
+    }
+
     public function test_a_support_session_does_not_bypass_email_verification(): void
     {
         $this->target->forceFill(['email_verified_at' => null])->saveQuietly();

@@ -1,13 +1,38 @@
 import React, { useState } from "react";
 import AdminLayout from "@/pages/(portals)/admin/layout";
-import { Head, useForm, router } from "@inertiajs/react";
+import { Head, Link, useForm, router } from "@inertiajs/react";
 import Pagination from "@/Components/ui/Pagination";
 import { useModal } from "@/Contexts/ModalContext";
 import {
     Search, Edit, Ban, RefreshCw, AlertTriangle, UserPlus, Send, X,
 } from "lucide-react";
 
-export default function UsersPage({ users, filters, departments, invitations = [] }) {
+/** Shown when no user can be added, so the reason (and where to fix it) is visible before trying. */
+function SeatBanner({ seatStatus }) {
+    if (!seatStatus) return null;
+
+    let text = null;
+    if (!seatStatus.can_add_seats) {
+        text = "Your plan isn't active or your trial has ended, so no new users can be added.";
+    } else if (seatStatus.used >= seatStatus.seats) {
+        text = `All ${seatStatus.seats} seats are in use (active users and pending invitations).`;
+    }
+
+    if (!text) return null;
+
+    return (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+            <span className="flex items-start gap-2">
+                <AlertTriangle size={18} className="mt-0.5 shrink-0" /> {text}
+            </span>
+            <Link href="/admin/billing" className="font-semibold underline shrink-0">
+                View billing
+            </Link>
+        </div>
+    );
+}
+
+export default function UsersPage({ users, filters, departments, invitations = [], seatStatus }) {
     const [search, setSearch] = useState(filters?.search || "");
     const { openModal, closeModal } = useModal();
 
@@ -126,6 +151,8 @@ export default function UsersPage({ users, filters, departments, invitations = [
                         </button>
                     </div>
                 </div>
+
+                <SeatBanner seatStatus={seatStatus} />
 
                 {invitations.length > 0 && (
                     <div className="bg-white border text-sm border-gray-200 shadow-sm rounded-2xl overflow-hidden">
