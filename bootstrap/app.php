@@ -104,6 +104,8 @@ return Application::configure(basePath: dirname(__DIR__))
     // Needs one cron entry on the server: `* * * * * php artisan schedule:run`.
     ->withSchedule(function (Schedule $schedule) {
         $schedule->command('onboarding:release-unverified-signups')->hourly()->withoutOverlapping();
+        // Deletes export files after 7 days and fails exports stuck for over an hour (TenantExport).
+        $schedule->command('exports:prune')->daily()->withoutOverlapping();
     })
 
     ->create();
