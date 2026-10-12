@@ -1,7 +1,7 @@
 import React from "react";
 import AdminLayout from "@/pages/(portals)/admin/layout";
-import { Head, Link, useForm } from "@inertiajs/react";
-import { CreditCard, Users, Mail, AlertTriangle, Save, Sparkles } from "lucide-react";
+import { Head, Link, router, useForm } from "@inertiajs/react";
+import { CreditCard, Users, Mail, AlertTriangle, Save, Sparkles, Download } from "lucide-react";
 
 const STATUS_LABELS = {
     trialing: "Trial",
@@ -77,7 +77,72 @@ function BillingEmailForm({ email }) {
     );
 }
 
-export default function BillingPage({ billing }) {
+const EXPORT_STATUS = {
+    queued: "Preparing…",
+    running: "Preparing…",
+    ready: "Ready",
+    failed: "Failed",
+    expired: "Expired",
+};
+
+function formatSize(bytes) {
+    if (!bytes) return null;
+    return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function DataExport({ exports }) {
+    const start = () => router.post("/admin/exports", {}, { preserveScroll: true });
+
+    return (
+        <section className="bg-white border border-gray-200 shadow-sm rounded-2xl p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <div className="flex items-center gap-2 text-gray-900 font-bold">
+                        <Download size={18} /> Data export
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                        A ZIP of CSV files with your users, departments, projects, tasks, time logs, comments, settings,
+                        activity log and invitations. We email you a link when it's ready; only you can download it.
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    onClick={start}
+                    disabled={!exports.can_request}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50 shrink-0"
+                >
+                    Start export
+                </button>
+            </div>
+            {!exports.can_request && (
+                <p className="text-xs text-gray-500">An export is being prepared, or the limit of 3 exports in 24 hours has been reached.</p>
+            )}
+
+            {exports.recent.length > 0 && (
+                <ul className="divide-y divide-gray-100 text-sm">
+                    {exports.recent.map((item) => (
+                        <li key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                            <span className="text-gray-700">
+                                {formatDate(item.created_at)} · {item.requested_by ?? "Unknown"}
+                                {item.size_bytes ? ` · ${formatSize(item.size_bytes)}` : ""}
+                            </span>
+                            <span className="flex items-center gap-3">
+                                <span className="text-gray-500">{EXPORT_STATUS[item.status] ?? item.status}</span>
+                                {item.download_url && (
+                                    <a href={item.download_url} className="font-semibold text-primary hover:underline">
+                                        Download
+                                    </a>
+                                )}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </section>
+    );
+}
+
+export default function BillingPage({ billing, exports }) {
     const statusLabel = billing.trial_expired ? "Trial ended" : STATUS_LABELS[billing.status] ?? "No plan";
     const goodStanding = billing.can_add_seats;
     const usedPct = billing.seats > 0 ? Math.min(100, Math.round((billing.seats_used / billing.seats) * 100)) : 100;
@@ -150,6 +215,8 @@ export default function BillingPage({ billing }) {
                     </div>
                     <BillingEmailForm email={billing.billing_email} />
                 </section>
+
+                {exports && <DataExport exports={exports} />}
             </div>
         </AdminLayout>
     );

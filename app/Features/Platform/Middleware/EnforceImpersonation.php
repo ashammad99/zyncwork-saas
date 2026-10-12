@@ -52,12 +52,15 @@ class EnforceImpersonation
     ];
 
     /**
-     * Routes that change where a tenant's billing mail goes (and, later, take
-     * its data out). Not user management, but support has no business doing
-     * either while signed in as a customer: blocked outright as well.
+     * Routes that change where a tenant's billing mail goes, or take its data
+     * out (the full export, including downloading one). Not user management,
+     * but support has no business doing either while signed in as a customer:
+     * blocked outright as well.
      */
     private const BILLING_ROUTES = [
         'admin.billing.email.update',
+        'admin.exports.store',
+        'admin.exports.download',
     ];
 
     public function __construct(
