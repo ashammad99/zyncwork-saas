@@ -6,6 +6,7 @@ use App\Core\BaseService;
 use App\Features\ActivityLog\Events\ActivityLogged;
 use App\Features\Auth\Models\User;
 use App\Features\Billing\Exceptions\SeatLimitReached;
+use App\Features\Billing\Services\BillingNotifier;
 use App\Features\Billing\Services\SeatGuard;
 use App\Features\Onboarding\Services\InvitationService;
 use Illuminate\Support\Facades\Auth;
@@ -16,6 +17,7 @@ class UserService extends BaseService
     public function __construct(
         protected InvitationService $invitations,
         protected SeatGuard $seats,
+        protected BillingNotifier $billingNotifier,
     ) {}
 
     /**
@@ -57,10 +59,19 @@ class UserService extends BaseService
 
         // Only reactivation takes a seat; deactivating and other edits never check.
         if (! $wasActive && $data['is_active']) {
-            DB::transaction(function () use ($user, $apply) {
-                $this->seats->ensureCanAdd($user->tenant_id);
-                $apply();
-            });
+            try {
+                DB::transaction(function () use ($user, $apply) {
+                    $this->seats->ensureCanAdd($user->tenant_id);
+                    $apply();
+                });
+            } catch (SeatLimitReached $e) {
+                // After the rollback, so the notice record isn't rolled back with it.
+                if ($e->reason === SeatLimitReached::SEATS_FULL) {
+                    $this->billingNotifier->seatLimitReached($user->tenant_id);
+                }
+
+                throw $e;
+            }
         } else {
             $apply();
         }

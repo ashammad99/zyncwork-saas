@@ -27,6 +27,19 @@ class EmailTemplatesTest extends TestCase
                 'companyName' => 'Acme', 'inviterName' => 'Sami', 'role' => 'employee',
                 'actionUrl' => 'https://app.test/invitations/abc', 'expiresAt' => 'Oct 21, 2026',
             ], ['Join Acme', 'Sami has invited you to join Acme on', 'as an employee', 'expires on Oct 21, 2026']],
+            'trial ending' => ['emails.billing.trial-ending', [
+                'companyName' => 'Acme', 'date' => '28 October 2026', 'actionUrl' => 'https://app.test/admin/billing',
+            ], ['Your trial ends soon', 'trial for Acme ends on 28 October 2026.', 'View billing', 'until you choose a plan']],
+            'trial expired' => ['emails.billing.trial-expired', [
+                'companyName' => 'Acme', 'date' => '28 October 2026', 'actionUrl' => 'https://app.test/admin/billing',
+            ], ['Your trial has ended', 'trial for Acme ended on 28 October 2026.', 'View billing']],
+            'seat limit' => ['emails.billing.seat-limit', [
+                'companyName' => 'Acme', 'seats' => 10, 'actionUrl' => 'https://app.test/admin/billing',
+            ], ['All seats are in use', 'Acme is using all 10 seats', 'revoke a pending invitation']],
+            'invitation blocked' => ['emails.billing.invitation-blocked', [
+                'companyName' => 'Acme', 'invitedEmail' => 'new@example.com', 'reason' => 'every seat is in use.',
+                'expiresAt' => '21 October 2026', 'actionUrl' => 'https://app.test/admin/billing',
+            ], ['new@example.com tried to accept their invitation to Acme, but every seat is in use.', 'stays valid until 21 October 2026']],
         ];
     }
 

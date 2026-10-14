@@ -88,8 +88,10 @@ class BillingMigrationTest extends TestCase
         $this->assertFalse(Schema::hasTable('plans'));
         $this->assertFalse(Schema::hasTable('tenant_subscriptions'));
         $this->assertFalse(Schema::hasColumn('tenants', 'billing_email'));
+        $this->assertFalse(Schema::hasTable('tenant_billing_notices'));
 
         Artisan::call('migrate', ['--force' => true]);
         $this->assertTrue(Schema::hasTable('tenant_subscriptions'));
+        $this->assertTrue(Schema::hasTable('tenant_billing_notices'));
     }
 }

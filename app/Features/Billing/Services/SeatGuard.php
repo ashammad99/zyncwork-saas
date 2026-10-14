@@ -38,18 +38,18 @@ class SeatGuard extends BaseService
 
         // Every tenant gets a row when it is created; without one, fail closed.
         if (! $subscription) {
-            throw new SeatLimitReached('Your organisation has no active plan. Please contact support.');
+            throw new SeatLimitReached('Your organisation has no active plan. Please contact support.', SeatLimitReached::NO_PLAN);
         }
 
         if (! $subscription->canAddSeats()) {
-            throw new SeatLimitReached($subscription->trialExpired()
-                ? 'Your trial has ended, so no new users can be added. Choose a plan to continue adding users. See Billing for details.'
-                : 'Your plan is not active, so no new users can be added. Please update your billing details. See Billing for details.');
+            throw $subscription->trialExpired()
+                ? new SeatLimitReached('Your trial has ended, so no new users can be added. Choose a plan to continue adding users. See Billing for details.', SeatLimitReached::TRIAL_ENDED)
+                : new SeatLimitReached('Your plan is not active, so no new users can be added. Please update your billing details. See Billing for details.', SeatLimitReached::PLAN_INACTIVE);
         }
 
         if ($this->usage($tenantId, $excludingInvitationId)['used'] + 1 > $subscription->seats) {
             throw new SeatLimitReached("Your plan includes {$subscription->seats} ".Str::plural('seat', $subscription->seats)
-                .', and all of them are in use (active users and pending invitations). Deactivate a user, revoke an invitation, or add seats. See Billing for details.');
+                .', and all of them are in use (active users and pending invitations). Deactivate a user, revoke an invitation, or add seats. See Billing for details.', SeatLimitReached::SEATS_FULL);
         }
     }
 
