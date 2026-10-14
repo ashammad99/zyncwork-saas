@@ -216,7 +216,7 @@ class InvitationService extends BaseService
         $companyName = Tenant::find($invitation->tenant_id)?->name;
 
         Mail::to($invitation->email)->send(new GeneralMail(
-            mailSubject: "You're invited to join {$companyName} on ".config('app.name'),
+            mailSubject: __('emails.invitation.subject', ['company' => $companyName, 'app' => config('app.name')]),
             contentView: 'emails.auth.invitation-body',
             data: [
                 'companyName' => $companyName,
