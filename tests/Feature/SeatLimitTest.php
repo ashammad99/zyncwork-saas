@@ -224,7 +224,7 @@ class SeatLimitTest extends TestCase
         // Someone else took the seat since: the plan was cut to the admin alone.
         $this->setSubscription(['seats' => 1]);
 
-        $this->accept($token)->assertSessionHasErrors(['email' => 'This company has no free seats right now, so the invitation cannot be accepted yet. Please ask the person who invited you.']);
+        $this->accept($token)->assertSessionHasErrors(['email' => "This company can't add new users right now. Please ask the person who invited you."]);
 
         $this->assertGuest('web');
         $this->assertFalse(User::withoutTenancy()->where('email', 'new.person@example.com')->exists());

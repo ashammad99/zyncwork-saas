@@ -42,12 +42,9 @@ class ForgotPasswordService extends BaseService
 
         // Send Email via Queue using GeneralMail
         Mail::to($email)->send(new GeneralMail(
-            mailSubject: 'Reset Your Password',
+            mailSubject: __('emails.reset_password.subject'),
             contentView: 'emails.auth.forgot-password-body',
             data: [
-                'title' => 'Password Reset Request',
-                'body' => 'You are receiving this email because we received a password reset request for your account. If you did not request a password reset, no further action is required.',
-                'actionText' => 'Reset Password',
                 'actionUrl' => route('password.reset', ['token' => $token, 'email' => $email]),
             ]
         ));

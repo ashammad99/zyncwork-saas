@@ -106,6 +106,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('onboarding:release-unverified-signups')->hourly()->withoutOverlapping();
         // Deletes export files after 7 days and fails exports stuck for over an hour (TenantExport).
         $schedule->command('exports:prune')->daily()->withoutOverlapping();
+        // Trial reminders (3 days, 1 day) and "trial ended" emails; each is sent once (BillingNotifier).
+        $schedule->command('billing:send-reminders')->hourly()->withoutOverlapping();
     })
 
     ->create();

@@ -11,4 +11,8 @@ return [
     // plans.key of the plan every new tenant starts on.
     'trial_plan' => 'trial',
 
+    // billing:send-reminders sends no "trial ended" email for a trial that ended
+    // more than this many days ago (when the command first runs, or after cron was down).
+    'trial_expired_notice_days' => 3,
+
 ];

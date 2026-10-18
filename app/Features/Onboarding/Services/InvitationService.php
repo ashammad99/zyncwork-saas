@@ -7,6 +7,7 @@ use App\Core\Tenancy\TenantContext;
 use App\Features\ActivityLog\Events\ActivityLogged;
 use App\Features\Auth\Models\User;
 use App\Features\Billing\Exceptions\SeatLimitReached;
+use App\Features\Billing\Services\BillingNotifier;
 use App\Features\Billing\Services\SeatGuard;
 use App\Features\Onboarding\Models\UserInvitation;
 use App\Features\Tenancy\Models\Tenant;
@@ -31,6 +32,7 @@ class InvitationService extends BaseService
     public function __construct(
         protected TenantContext $tenantContext,
         protected SeatGuard $seats,
+        protected BillingNotifier $billingNotifier,
     ) {}
 
     /**
@@ -43,18 +45,27 @@ class InvitationService extends BaseService
     {
         $token = Str::random(64);
 
-        $invitation = DB::transaction(function () use ($inviter, $data, $token) {
-            $this->seats->ensureCanAdd($inviter->tenant_id);
+        try {
+            $invitation = DB::transaction(function () use ($inviter, $data, $token) {
+                $this->seats->ensureCanAdd($inviter->tenant_id);
 
-            return UserInvitation::create([
-                'email' => Str::lower(trim($data['email'])),
-                'role' => $data['role'],
-                'department_id' => $data['department_id'] ?? null,
-                'invited_by' => $inviter->id,
-                'token_hash' => hash('sha256', $token),
-                'expires_at' => now()->addDays((int) config('onboarding.invitations.expire_days')),
-            ]);
-        });
+                return UserInvitation::create([
+                    'email' => Str::lower(trim($data['email'])),
+                    'role' => $data['role'],
+                    'department_id' => $data['department_id'] ?? null,
+                    'invited_by' => $inviter->id,
+                    'token_hash' => hash('sha256', $token),
+                    'expires_at' => now()->addDays((int) config('onboarding.invitations.expire_days')),
+                ]);
+            });
+        } catch (SeatLimitReached $e) {
+            // After the rollback, so the notice record isn't rolled back with it.
+            if ($e->reason === SeatLimitReached::SEATS_FULL) {
+                $this->billingNotifier->seatLimitReached($inviter->tenant_id);
+            }
+
+            throw $e;
+        }
 
         $this->sendInvite($invitation, $inviter, $token);
         event(new ActivityLogged($inviter, 'user_invited', "Invited {$invitation->email} as {$invitation->role}.", 'system'));
@@ -165,12 +176,8 @@ class InvitationService extends BaseService
                 return DB::transaction(function () use ($invitation, $data) {
                     // First, so the subscription row is locked before the invitation
                     // row, in the same order as invite(). The plan may have lapsed or
-                    // lost seats since the invite was sent.
-                    try {
-                        $this->seats->ensureCanAdd($invitation->tenant_id, excludingInvitationId: $invitation->id);
-                    } catch (SeatLimitReached) {
-                        throw ValidationException::withMessages(['email' => 'This company has no free seats right now, so the invitation cannot be accepted yet. Please ask the person who invited you.']);
-                    }
+                    // lost seats since the invite was sent (handled below).
+                    $this->seats->ensureCanAdd($invitation->tenant_id, excludingInvitationId: $invitation->id);
 
                     // Claimed atomically, so two requests with the same link create one user.
                     $claimed = UserInvitation::whereKey($invitation->id)
@@ -204,6 +211,14 @@ class InvitationService extends BaseService
 
                     return $user;
                 });
+            } catch (SeatLimitReached $e) {
+                // After the rollback, so the notice record isn't rolled back with it.
+                // The invitee can't tell the admins themselves, so they are emailed
+                // with the reason. The invitee gets the same neutral message
+                // whatever the reason: billing details are the tenant's business.
+                $this->billingNotifier->invitationBlocked($invitation, $e);
+
+                throw ValidationException::withMessages(['email' => "This company can't add new users right now. Please ask the person who invited you."]);
             } catch (UniqueConstraintViolationException) {
                 // The same email was taken between the check and the insert.
                 throw $this->emailTaken();
@@ -216,7 +231,7 @@ class InvitationService extends BaseService
         $companyName = Tenant::find($invitation->tenant_id)?->name;
 
         Mail::to($invitation->email)->send(new GeneralMail(
-            mailSubject: "You're invited to join {$companyName} on ".config('app.name'),
+            mailSubject: __('emails.invitation.subject', ['company' => $companyName, 'app' => config('app.name')]),
             contentView: 'emails.auth.invitation-body',
             data: [
                 'companyName' => $companyName,

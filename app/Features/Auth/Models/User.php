@@ -65,7 +65,7 @@ class User extends Authenticatable implements MustVerifyEmail
         );
 
         Mail::to($this->getEmailForVerification())->send(new GeneralMail(
-            mailSubject: 'Verify your email address',
+            mailSubject: __('emails.verify_email.subject'),
             contentView: 'emails.auth.verify-email-body',
             data: [
                 'name' => $this->name,
