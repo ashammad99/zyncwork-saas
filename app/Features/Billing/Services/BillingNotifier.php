@@ -9,8 +9,10 @@ use App\Features\Billing\Exceptions\SeatLimitReached;
 use App\Features\Billing\Models\TenantBillingNotice;
 use App\Features\Billing\Models\TenantSubscription;
 use App\Features\Onboarding\Models\UserInvitation;
+use App\Features\SystemSettings\Admin\Models\Setting;
 use App\Features\Tenancy\Models\Tenant;
 use App\Mail\GeneralMail;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
@@ -63,7 +65,7 @@ class BillingNotifier extends BaseService
                 };
 
                 $expired = $kind === TenantBillingNotice::KIND_TRIAL_EXPIRED;
-                $date = $endsAt->translatedFormat('j F Y');
+                $date = $this->formatDate($subscription->tenant, $endsAt);
 
                 // Keyed by the end time, so an extended trial gets its reminders again.
                 $sent += (int) $this->notify($subscription->tenant, $kind, $endsAt->format('Y-m-d H:i:s'),
@@ -129,7 +131,7 @@ class BillingNotifier extends BaseService
             [
                 'invitedEmail' => $invitation->email,
                 'reason' => __('billing.invitation_blocked.reasons.'.$reason->reason),
-                'expiresAt' => $invitation->expires_at->translatedFormat('j F Y'),
+                'expiresAt' => $this->formatDate($tenant, $invitation->expires_at),
             ],
         );
     }
@@ -151,6 +153,24 @@ class BillingNotifier extends BaseService
             ->orderBy('id')
             ->pluck('email')
             ->all());
+    }
+
+    /**
+     * The date in the tenant's own timezone (its "Default Timezone" setting)
+     * or UTC, named next to it: "28 October 2026 (UTC)".
+     */
+    private function formatDate(Tenant $tenant, CarbonInterface $date): string
+    {
+        $zone = $this->tenantContext->run($tenant->id, fn () => Setting::get('app.timezone'));
+
+        if (! is_string($zone) || ! in_array($zone, timezone_identifiers_list(), true)) {
+            $zone = 'UTC';
+        }
+
+        return __('billing.date_in_zone', [
+            'date' => $date->copy()->setTimezone($zone)->translatedFormat('j F Y'),
+            'zone' => $zone,
+        ]);
     }
 
     private function shouldNotify(Tenant $tenant): bool

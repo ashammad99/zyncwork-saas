@@ -213,10 +213,12 @@ class InvitationService extends BaseService
                 });
             } catch (SeatLimitReached $e) {
                 // After the rollback, so the notice record isn't rolled back with it.
-                // The invitee can't tell the admins themselves, so they are emailed.
+                // The invitee can't tell the admins themselves, so they are emailed
+                // with the reason. The invitee gets the same neutral message
+                // whatever the reason: billing details are the tenant's business.
                 $this->billingNotifier->invitationBlocked($invitation, $e);
 
-                throw ValidationException::withMessages(['email' => 'This company has no free seats right now, so the invitation cannot be accepted yet. Please ask the person who invited you.']);
+                throw ValidationException::withMessages(['email' => "This company can't add new users right now. Please ask the person who invited you."]);
             } catch (UniqueConstraintViolationException) {
                 // The same email was taken between the check and the insert.
                 throw $this->emailTaken();

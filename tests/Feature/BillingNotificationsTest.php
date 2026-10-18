@@ -7,6 +7,7 @@ use App\Features\Auth\Models\User;
 use App\Features\Billing\Models\TenantBillingNotice;
 use App\Features\Billing\Models\TenantSubscription;
 use App\Features\Onboarding\Models\UserInvitation;
+use App\Features\SystemSettings\Admin\Models\Setting;
 use App\Features\Tenancy\Models\Tenant;
 use App\Mail\GeneralMail;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -16,6 +17,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Testing\TestResponse;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -158,7 +160,8 @@ class BillingNotificationsTest extends TestCase
 
         $this->assertSame(['billing@acme.test'], $this->recipientsOf('emails.billing.trial-ending'));
         $mail = $this->mails('emails.billing.trial-ending')->first();
-        $this->assertSame('Your '.config('app.name').' trial ends on 28 October 2026', $mail->mailSubject);
+        $this->assertSame('Your '.config('app.name').' trial ends on 28 October 2026 (UTC)', $mail->mailSubject);
+        $this->assertSame('28 October 2026 (UTC)', $mail->data['date']);
         $this->assertSame('Acme', $mail->data['companyName']);
         $this->assertSame(route('admin.billing.index'), $mail->data['actionUrl']);
         $this->assertSame(1, TenantBillingNotice::where('kind', TenantBillingNotice::KIND_TRIAL_ENDS_3_DAYS)->count());
@@ -252,6 +255,31 @@ class BillingNotificationsTest extends TestCase
 
         $this->expectException(UniqueConstraintViolationException::class);
         DB::table('tenant_billing_notices')->insert($row);
+    }
+
+    public function test_dates_are_shown_in_the_tenants_timezone(): void
+    {
+        // 05:00 in Gaza (UTC+2 in October) is 03:00 UTC, and still 27 October in Los Angeles.
+        $this->setSubscription(['trial_ends_at' => Carbon::parse('2026-10-28 05:00:00', 'Asia/Gaza')]);
+        app(TenantContext::class)->run($this->tenant->id, fn () => Setting::create(['setting_key' => 'app.timezone', 'setting_value' => 'America/Los_Angeles']));
+
+        Carbon::setTestNow(Carbon::parse('2026-10-25 11:00:00', 'Asia/Gaza'));
+        $this->runReminders();
+
+        $mail = $this->mails('emails.billing.trial-ending')->sole();
+        $this->assertSame('27 October 2026 (America/Los_Angeles)', $mail->data['date']);
+        $this->assertStringEndsWith('27 October 2026 (America/Los_Angeles)', $mail->mailSubject);
+    }
+
+    public function test_an_unknown_timezone_setting_falls_back_to_utc(): void
+    {
+        $this->setSubscription(['trial_ends_at' => Carbon::parse('2026-10-28 01:00:00', 'Asia/Gaza')]); // 27 Oct 23:00 UTC
+        app(TenantContext::class)->run($this->tenant->id, fn () => Setting::create(['setting_key' => 'app.timezone', 'setting_value' => 'Mars/Olympus']));
+
+        Carbon::setTestNow(Carbon::parse('2026-10-25 11:00:00', 'Asia/Gaza'));
+        $this->runReminders();
+
+        $this->assertSame('27 October 2026 (UTC)', $this->mails('emails.billing.trial-ending')->sole()->data['date']);
     }
 
     // ── Recipients and skips ─────────────────────────────────────────────
@@ -369,6 +397,17 @@ class BillingNotificationsTest extends TestCase
         $this->assertCount(0, $this->mails('emails.billing.seat-limit'));
     }
 
+    public function test_a_reactivation_refused_for_an_ended_trial_sends_no_seat_limit_email(): void
+    {
+        $this->setSubscription(['trial_ends_at' => now()->subMinute()]);
+        $inactive = $this->makeUser($this->tenant, active: false);
+
+        $this->reactivate($inactive)->assertSessionHas('error');
+
+        $this->assertCount(0, $this->mails('emails.billing.seat-limit'));
+        $this->assertFalse($inactive->fresh()->is_active);
+    }
+
     public function test_the_seat_limit_cooldown_is_per_tenant(): void
     {
         $other = $this->makeTenant('Globex', 'billing@globex.test');
@@ -419,6 +458,34 @@ class BillingNotificationsTest extends TestCase
         $this->accept('the-token')->assertSessionHasErrors('email');
 
         $this->assertSame('the trial has ended.', $this->mails('emails.billing.invitation-blocked')->sole()->data['reason']);
+    }
+
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function refusals(): array
+    {
+        return [
+            'seats full' => [['seats' => 1]],
+            'trial ended' => [['trial_ends_at' => Carbon::parse('2026-10-14 09:59:00')]],
+            'payment overdue' => [['status' => TenantSubscription::STATUS_PAST_DUE]],
+            'canceled' => [['status' => TenantSubscription::STATUS_CANCELED]],
+        ];
+    }
+
+    #[DataProvider('refusals')]
+    public function test_the_invitee_gets_one_neutral_message_whatever_the_reason(array $subscription): void
+    {
+        $this->makeInvitation('the-token');
+        $this->setSubscription($subscription);
+
+        $response = $this->accept('the-token');
+
+        $response->assertSessionHasErrors(['email' => "This company can't add new users right now. Please ask the person who invited you."]);
+        $message = session('errors')->first('email');
+        foreach (['seat', 'trial', 'plan', 'billing', 'payment'] as $word) {
+            $this->assertStringNotContainsStringIgnoringCase($word, $message);
+        }
+        // The tenant still learns the real reason.
+        $this->assertCount(1, $this->mails('emails.billing.invitation-blocked'));
     }
 
     public function test_no_invitation_blocked_email_for_a_suspended_tenant(): void

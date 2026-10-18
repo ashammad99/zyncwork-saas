@@ -13,6 +13,9 @@ return [
 
     'view_billing' => 'View billing',
 
+    // A date in the tenant's timezone (or UTC), e.g. "28 October 2026 (UTC)".
+    'date_in_zone' => ':date (:zone)',
+
     'trial_ending' => [
         'subject' => 'Your :app trial ends on :date',
         'heading' => 'Your trial ends soon',

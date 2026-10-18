@@ -15,21 +15,22 @@ class HealthStatusService extends BaseService
     public function getSystemMetrics(): array
     {
         return [
+            // No config key for this one yet: after config:cache it always shows the default.
             'app_version' => env('APP_VERSION', '1.0.0'),
             'laravel_version' => app()->version(),
             'php_version' => phpversion(),
-            'environment' => env('APP_ENV', 'production'),
-            'debug_mode' => env('APP_DEBUG', false) ? 'Enabled' : 'Disabled',
+            'environment' => config('app.env'),
+            'debug_mode' => config('app.debug') ? 'Enabled' : 'Disabled',
             'server_os' => php_uname('s').' '.php_uname('r'),
             'database' => [
-                'connection' => env('DB_CONNECTION', 'mysql'),
+                'connection' => config('database.default'),
                 'status' => $this->checkDatabaseConnection(),
             ],
             'cache' => [
-                'driver' => env('CACHE_DRIVER', 'file'),
+                'driver' => config('cache.default'),
                 'status' => $this->checkCacheConnection(),
             ],
-            'queue' => env('QUEUE_CONNECTION', 'sync'),
+            'queue' => config('queue.default'),
             'timezone' => config('app.timezone'),
             'memory_limit' => ini_get('memory_limit'),
             'tenants' => [
