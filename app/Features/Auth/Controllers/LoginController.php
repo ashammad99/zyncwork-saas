@@ -26,12 +26,6 @@ class LoginController extends BaseController
         return view('pages.auth.login.page', [
             'app_name' => config('app.name'),
             'app_description' => config('app.description'),
-            'title' => 'Login - Laravel Feature Kit',
-            'keywords' => 'login, authentication, laravel feature kit',
-            'description' => 'Login to your account on Laravel Feature Kit and access a world of powerful features and seamless user experience.',
-            'og_image' => asset('assets/images/auth/login-og-image.png'),
-            'og_title' => 'Login to Laravel Feature Kit',
-            'og_description' => 'Login to your account on Laravel Feature Kit and access a world of powerful features and seamless user experience.',
         ]);
     }
 

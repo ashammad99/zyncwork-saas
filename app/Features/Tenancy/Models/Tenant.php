@@ -22,7 +22,7 @@ class Tenant extends Model
     protected static function booted(): void
     {
         static::created(function (Tenant $tenant) {
-            $trial = Plan::where('key', config('billing.trial_plan'))->firstOrFail();
+            $trial = Plan::trialPlan();
 
             (new TenantSubscription)->forceFill([
                 'tenant_id' => $tenant->id,

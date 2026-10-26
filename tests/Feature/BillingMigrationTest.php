@@ -79,6 +79,25 @@ class BillingMigrationTest extends TestCase
         $this->assertSame(10, (int) $plans['trial']->included_seats);
         $this->assertTrue((bool) $plans['trial']->is_trial);
         $this->assertNull($plans['standard']->included_seats);
+
+        // Placeholder price until the real one is set: 10.00 USD per seat per month.
+        $this->assertSame(1000, (int) $plans['standard']->price_amount);
+        $this->assertSame('USD', $plans['standard']->currency);
+        $this->assertSame('month', $plans['standard']->interval);
+        $this->assertNull($plans['trial']->price_amount);
+    }
+
+    public function test_plan_prices_roll_back_cleanly(): void
+    {
+        Artisan::call('migrate:rollback', ['--path' => 'database/migrations/2026_10_26_100000_add_prices_to_plans_table.php', '--force' => true]);
+
+        foreach (['price_amount', 'currency', 'interval'] as $column) {
+            $this->assertFalse(Schema::hasColumn('plans', $column));
+        }
+        $this->assertSame(2, DB::table('plans')->count());
+
+        Artisan::call('migrate', ['--force' => true]);
+        $this->assertSame(1000, (int) DB::table('plans')->where('key', 'standard')->value('price_amount'));
     }
 
     public function test_billing_rolls_back_cleanly(): void

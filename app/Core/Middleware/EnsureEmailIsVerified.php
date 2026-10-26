@@ -24,6 +24,13 @@ class EnsureEmailIsVerified
         'verification.verify',
         'verification.send',
         'logout',
+        // The public site (Landing): read-only pages, linked from the verify screen's footer.
+        'landing.index',
+        'landing.pricing',
+        'landing.terms',
+        'landing.privacy',
+        'landing.refunds',
+        'landing.contact',
     ];
 
     public function handle(Request $request, Closure $next): Response

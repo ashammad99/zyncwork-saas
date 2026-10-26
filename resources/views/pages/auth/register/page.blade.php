@@ -63,6 +63,13 @@
     <button type="submit" class="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold">
         Create account
     </button>
+
+    <p class="text-sm text-surface-foreground text-center">
+        {!! __('site.signup_agreement', [
+            'terms' => '<a href="'.e(route('landing.terms')).'" class="text-primary hover:underline">'.e(__('site.footer.terms')).'</a>',
+            'privacy' => '<a href="'.e(route('landing.privacy')).'" class="text-primary hover:underline">'.e(__('site.footer.privacy')).'</a>',
+        ]) !!}
+    </p>
 </form>
 
 @endsection

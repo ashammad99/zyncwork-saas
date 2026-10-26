@@ -15,10 +15,7 @@ class ForgotPasswordController extends BaseController
 
     public function index()
     {
-        return view('pages.auth.forgot-password.page', [
-            'title' => 'Reset Password - Laravel Feature Kit',
-            'description' => 'Forget your password? No worries, reset it here.',
-        ]);
+        return view('pages.auth.forgot-password.page');
     }
 
     public function send(Request $request)
@@ -37,7 +34,6 @@ class ForgotPasswordController extends BaseController
         return view('pages.auth.reset-password.page', [
             'token' => $token,
             'email' => $request->email,
-            'title' => 'Reset Password - Laravel Feature Kit',
         ]);
     }
 
