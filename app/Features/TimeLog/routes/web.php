@@ -6,7 +6,6 @@ use App\Features\TimeLog\Controllers\TimeLogExportController;
 use App\Features\TimeLog\Controllers\TimesheetController;
 use Illuminate\Support\Facades\Route;
 
-
 // ── Timesheet views (employee + manager) ───────────────────────────────────
 Route::middleware(['auth'])->group(function () {
 
@@ -36,15 +35,14 @@ Route::middleware(['auth', 'role:admin'])
     ->prefix('admin/timesheets')
     ->name('admin.timesheets.')
     ->group(function () {
-// admin group:
+        // admin group:
         Route::get('/export-pdf', [TimeLogExportController::class, 'adminPdf'])->name('exportPdf');
-
 
         // All time logs, filterable
         Route::get('/', [AdminTimeLogController::class, 'index'])
             ->name('index');
-// Export CSV (respects current filters)
-        Route::get('/export', [\App\Features\TimeLog\Controllers\TimeLogExportController::class, 'admin'])
+        // Export CSV (respects current filters)
+        Route::get('/export', [TimeLogExportController::class, 'admin'])
             ->name('export');
         // Approval queue — STATIC routes must come before {user}
         Route::get('/pending', [AdminTimeLogController::class, 'pending'])
@@ -89,5 +87,3 @@ Route::middleware(['auth'])->group(function () {
     Route::post('manager/timesheets/{timeLog}/reject', [TimeLogController::class, 'managerReject'])
         ->name('manager.timesheets.reject');
 });
-
-

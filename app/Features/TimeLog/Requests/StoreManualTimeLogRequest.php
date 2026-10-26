@@ -15,7 +15,7 @@ class StoreManualTimeLogRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'date' => ['required', 'date', 'before_or_equal:' . Carbon::today()->toDateString()],
+            'date' => ['required', 'date', 'before_or_equal:'.Carbon::today()->toDateString()],
             'started_at' => ['required', 'date_format:H:i'],
             'ended_at' => ['required', 'date_format:H:i', 'after:started_at'],
             'notes' => ['nullable', 'string', 'max:1000'],

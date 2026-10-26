@@ -8,6 +8,7 @@ use App\Features\Projects\Admin\Models\Project;
 use App\Features\Projects\Manager\Services\ProjectService;
 use App\Features\TaskAdmin\Models\Task;
 use App\Features\TimeLog\Models\TimeLog;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -21,7 +22,7 @@ class ManagerProjectShowTest extends TestCase
     {
         return User::create(array_merge([
             'name' => 'Test User',
-            'email' => uniqid('user_') . '@example.com',
+            'email' => uniqid('user_').'@example.com',
             'password' => Hash::make('password'),
             'role' => 'employee',
             'is_active' => true,
@@ -214,7 +215,7 @@ class ManagerProjectShowTest extends TestCase
         // Laravel's own documented pattern for testing state-changing routes without simulating
         // a browser's token handshake. It does NOT disable 'auth', 'role', or the ProjectPolicy
         // checks below — those still run and are what this test is actually verifying.
-        $this->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class);
+        $this->withoutMiddleware(ValidateCsrfToken::class);
 
         $department = $this->makeDepartment();
         $manager = $this->makeUser(['role' => 'manager', 'department_id' => $department->id]);
@@ -297,8 +298,8 @@ class ManagerProjectShowTest extends TestCase
         $this->assertSame(
             count($smallQueries),
             count($bigQueries),
-            'Expected identical query counts for a 3-task project vs a 30-task project: ' .
-            count($smallQueries) . ' vs ' . count($bigQueries) . ' — a difference would indicate an N+1 query.'
+            'Expected identical query counts for a 3-task project vs a 30-task project: '.
+            count($smallQueries).' vs '.count($bigQueries).' — a difference would indicate an N+1 query.'
         );
     }
 }

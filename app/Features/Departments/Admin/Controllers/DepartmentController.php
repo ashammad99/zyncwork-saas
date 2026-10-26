@@ -7,8 +7,9 @@ use App\Features\Auth\Models\User;
 use App\Features\Departments\Admin\Models\Department;
 use App\Features\Departments\Admin\Requests\StoreDepartmentRequest;
 use App\Features\Departments\Admin\Requests\UpdateDepartmentRequest;
-use Inertia\Inertia;
 use App\Features\Departments\Admin\Services\DepartmentService;
+use Inertia\Inertia;
+
 class DepartmentController extends BaseController
 {
     public function __construct(

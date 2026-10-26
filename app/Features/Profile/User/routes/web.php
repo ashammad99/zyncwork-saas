@@ -1,8 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-
+use App\Features\Profile\Shared\Controllers\ProfileImageController;
 use App\Features\Profile\User\Controllers\ProfileController;
+use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'role:employee,manager'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');
@@ -14,6 +14,6 @@ Route::middleware(['auth', 'role:employee,manager'])->group(function () {
 });
 // Role-agnostic avatar serving — any authenticated user
 Route::middleware('auth')->group(function () {
-    Route::get('/profile-image/{filename}', [\App\Features\Profile\Shared\Controllers\ProfileImageController::class, 'serve'])
+    Route::get('/profile-image/{filename}', [ProfileImageController::class, 'serve'])
         ->name('profile-image');
 });

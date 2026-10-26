@@ -9,26 +9,28 @@ use Illuminate\Support\Str;
 class MakeFeatureObserverCommand extends Command
 {
     protected $signature = 'make:feature:observer {feature : Feature name} {path* : [Role] [Name] (Name defaults to Observer)}';
+
     protected $description = 'Create an observer inside a feature';
 
     public function handle(): void
     {
         $feature = $this->argument('feature');
-        $path    = $this->argument('path');
+        $path = $this->argument('path');
 
         // Resolve name and role from path
         $name = Str::studly(array_pop($path));
-        $name = Str::endsWith($name, 'Observer') ? $name : $name . 'Observer';
+        $name = Str::endsWith($name, 'Observer') ? $name : $name.'Observer';
 
-        $rolePath  = !empty($path) ? implode('/', $path) : '';
-        $fullPath  = !empty($rolePath) ? "{$feature}/{$rolePath}" : $feature;
+        $rolePath = ! empty($path) ? implode('/', $path) : '';
+        $fullPath = ! empty($rolePath) ? "{$feature}/{$rolePath}" : $feature;
 
-        $parts     = array_map(fn($p) => Str::studly($p), explode('/', $fullPath));
-        $namespace = 'App\\Features\\' . implode('\\', $parts) . '\\Observers';
-        $filePath  = app_path('Features/' . implode('/', $parts) . "/Observers/{$name}.php");
+        $parts = array_map(fn ($p) => Str::studly($p), explode('/', $fullPath));
+        $namespace = 'App\\Features\\'.implode('\\', $parts).'\\Observers';
+        $filePath = app_path('Features/'.implode('/', $parts)."/Observers/{$name}.php");
 
         if (File::exists($filePath)) {
             $this->error("Observer [{$name}] already exists!");
+
             return;
         }
 

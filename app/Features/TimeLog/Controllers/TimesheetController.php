@@ -6,13 +6,14 @@ use App\Core\BaseController;
 use App\Features\Auth\Models\User;
 use App\Features\TaskAdmin\Models\Task;
 use App\Features\TimeLog\Models\TimeLog;
-use Illuminate\Http\Request;
 use App\Features\TimeLog\Services\TimeLogService;
+use App\Features\TimeLog\Services\TimerService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
-use App\Features\TimeLog\Services\TimerService;
+
 class TimesheetController extends BaseController
 {
     public function __construct(
@@ -75,7 +76,7 @@ class TimesheetController extends BaseController
             'employees' => User::whereIn('id', $employeeIds)
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            'filters'   => $filters,
+            'filters' => $filters,
         ]);
     }
 
@@ -104,7 +105,6 @@ class TimesheetController extends BaseController
             'weekStart' => $weekStart->toDateString(),
         ]);
     }
-
 
     protected function resolveWeekStart(Request $request): Carbon
     {
@@ -167,6 +167,7 @@ class TimesheetController extends BaseController
 
         abort(403, 'You are not authorized to view this timesheet.');
     }
+
     public function activeTimer(Request $request, Task $task)
     {
         $active = TimeLog::running()
@@ -176,7 +177,7 @@ class TimesheetController extends BaseController
 
         return response()->json([
             'active' => $active !== null,
-            'timer'  => $active,
+            'timer' => $active,
         ]);
     }
 }

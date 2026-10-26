@@ -15,7 +15,8 @@ class UpdateProfileRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
+            // Unique across the whole platform (TenantRule), ignoring the user's own row.
+            'email' => 'required|email|max:255|unique:users,email,'.$this->user()->id,
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:255',
             'profile_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
@@ -28,6 +29,7 @@ class UpdateProfileRequest extends FormRequest
             'name.required' => 'Name is required.',
             'email.required' => 'Email is required.',
             'email.email' => 'Email is invalid.',
+            'email.unique' => 'This email address is already in use.',
             'phone.required' => 'Phone is required.',
             'address.required' => 'Address is required.',
             'profile_image.required' => 'Profile image is required.',

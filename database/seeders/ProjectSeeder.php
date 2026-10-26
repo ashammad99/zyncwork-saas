@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Features\Auth\Models\User;
 use App\Features\Departments\Admin\Models\Department;
 use App\Features\Projects\Admin\Models\Project;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class ProjectSeeder extends Seeder
@@ -20,6 +19,7 @@ class ProjectSeeder extends Seeder
 
         if ($departments->isEmpty() || $owners->isEmpty()) {
             $this->command->warn('Departments or eligible owners not found.');
+
             return;
         }
 

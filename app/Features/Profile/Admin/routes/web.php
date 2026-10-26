@@ -1,8 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-
 use App\Features\Profile\Admin\Controllers\ProfileController;
+use App\Features\Profile\Shared\Controllers\ProfileImageController;
+use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');
@@ -11,5 +11,5 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::put('/profile/password', [ProfileController::class, 'passwordUpdate'])->name('profile.password.update');
 
     // Modular Profile Image Delivery
-    Route::get('/profile-image/{filename}', [\App\Features\Profile\Shared\Controllers\ProfileImageController::class, 'serve'])->name('profile-image');
+    Route::get('/profile-image/{filename}', [ProfileImageController::class, 'serve'])->name('profile-image');
 });

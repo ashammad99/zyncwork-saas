@@ -2,7 +2,6 @@
 
 namespace App\Features\Projects\Manager\Requests;
 
-use App\Features\Projects\Admin\Models\Project;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreProjectRequest extends FormRequest
@@ -15,19 +14,19 @@ class StoreProjectRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'        => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'status'      => ['required', 'in:active,on_hold,archived'],
-            'deadline'    => ['nullable', 'date', 'after_or_equal:today'],
+            'status' => ['required', 'in:active,on_hold,archived'],
+            'deadline' => ['nullable', 'date', 'after_or_equal:today'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'name.required'        => 'Project name is required.',
-            'status.required'      => 'Project status is required.',
-            'status.in'            => 'Status must be active, on_hold, or archived.',
+            'name.required' => 'Project name is required.',
+            'status.required' => 'Project status is required.',
+            'status.in' => 'Status must be active, on_hold, or archived.',
             'deadline.after_or_equal' => 'Deadline cannot be in the past.',
         ];
     }

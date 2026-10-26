@@ -8,10 +8,11 @@ use App\Features\Departments\Admin\Models\Department;
 use App\Features\Projects\Admin\Models\Project;
 use App\Features\Projects\Admin\Requests\StoreProjectRequest;
 use App\Features\Projects\Admin\Requests\UpdateProjectRequest;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
 use App\Features\Projects\Admin\Services\ProjectService;
 use App\Features\Projects\Manager\Services\ProjectService as ManagerProjectService;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+
 class ProjectController extends BaseController
 {
     public function __construct(
@@ -106,5 +107,4 @@ class ProjectController extends BaseController
             ->route('admin.projects.index')
             ->with('success', 'Project deleted successfully.');
     }
-
 }

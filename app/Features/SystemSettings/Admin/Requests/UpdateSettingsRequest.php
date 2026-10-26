@@ -8,8 +8,6 @@ use Illuminate\Validation\Rule;
 
 class UpdateSettingsRequest extends FormRequest
 {
-
-
     public function authorize(): bool
     {
         return $this->user()?->role === 'admin';
@@ -24,7 +22,7 @@ class UpdateSettingsRequest extends FormRequest
             // The page posts flat keys like "app.name"; escape the dots so the
             // validator doesn't read them as nested paths (app → name).
             $rules[str_replace('.', '\.', $key)] = match ($config['type']) {
-                'number' => ['required', 'numeric', 'min:' . ($config['min'] ?? 0), 'max:' . ($config['max'] ?? PHP_INT_MAX)],
+                'number' => ['required', 'numeric', 'min:'.($config['min'] ?? 0), 'max:'.($config['max'] ?? PHP_INT_MAX)],
                 'boolean' => ['required', 'boolean'],
                 'email' => ['required', 'email', 'max:255'],
                 'select' => ['required', 'string', Rule::in($config['options'] ?? [])],

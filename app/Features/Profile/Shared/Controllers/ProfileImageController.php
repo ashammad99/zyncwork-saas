@@ -15,7 +15,7 @@ class ProfileImageController extends BaseController
     public function serve(string $filename): BinaryFileResponse
     {
         // Simple authentication check
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             abort(403);
         }
 
@@ -27,7 +27,7 @@ class ProfileImageController extends BaseController
 
         $fullPath = storage_path("app/private/profile-image/{$filename}");
 
-        if (!file_exists($fullPath)) {
+        if (! file_exists($fullPath)) {
             abort(404);
         }
 

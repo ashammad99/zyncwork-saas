@@ -15,20 +15,15 @@
 {{-- Styled Footer --}}
 <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
     <p style="font-size: 13px; color: #6b7280; line-height: 1.5;">
-        &copy; {{ date('Y') }} {{ config('app.name') }}. All rights reserved.<br>
-        Built with passion for modern developers.
+        {{ __('emails.layout.rights', ['year' => date('Y'), 'app' => config('app.name')]) }}
     </p>
 
     @if(isset($unsubscribe_url))
         <p style="margin-top: 10px;">
             <a href="{{ $unsubscribe_url }}" style="font-size: 12px; color: #9ca3af; text-decoration: underline;">
-                Unsubscribe from these emails
+                {{ __('emails.layout.unsubscribe') }}
             </a>
         </p>
     @endif
-
-    <div style="margin-top: 15px; font-size: 12px; color: #d1d5db;">
-        {{ config('app.address') ?? '123 Developer Lane, Tech City' }}
-    </div>
 </div>
 </x-mail::message>

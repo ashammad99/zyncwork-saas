@@ -8,8 +8,15 @@
        class="text-sm font-semibold text-primary hover:underline">
         ← Back to Home
     </a>
+    <a href="{{ route('register') }}"
+       class="text-sm font-semibold text-primary hover:underline">
+        New company? Create an account
+    </a>
 </div>
 
+@if (session('status'))
+    <p class="mb-6 text-sm font-bold text-primary">{{ session('status') }}</p>
+@endif
 
 
 <form method="POST" action="{{ route('auth.login.login') }}" class="space-y-6">

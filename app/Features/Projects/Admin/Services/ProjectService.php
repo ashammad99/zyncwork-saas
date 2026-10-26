@@ -10,14 +10,14 @@ class ProjectService extends BaseService
     public function paginate(int $perPage = 10, array $filters = [])
     {
         return Project::query()
-            ->with(['department', 'owner','members'])
-            ->when(!empty($filters['status']), function ($query) use ($filters) {
+            ->with(['department', 'owner', 'members'])
+            ->when(! empty($filters['status']), function ($query) use ($filters) {
                 $query->where('status', $filters['status']);
             })
-            ->when(!empty($filters['department_id']), function ($query) use ($filters) {
+            ->when(! empty($filters['department_id']), function ($query) use ($filters) {
                 $query->where('department_id', $filters['department_id']);
             })
-            ->when(!empty($filters['owner_id']), function ($query) use ($filters) {
+            ->when(! empty($filters['owner_id']), function ($query) use ($filters) {
                 $query->where('owner_id', $filters['owner_id']);
             })
             ->latest()
@@ -42,7 +42,8 @@ class ProjectService extends BaseService
             ])->toArray()
         );
 
-        return $project;    }
+        return $project;
+    }
 
     public function update(Project $project, array $data): Project
     {

@@ -1,9 +1,10 @@
 <?php
 
 namespace App\Features\Departments\Admin\Services;
-use Illuminate\Pagination\LengthAwarePaginator;
+
 use App\Core\BaseService;
 use App\Features\Departments\Admin\Models\Department;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class DepartmentService extends BaseService
 {

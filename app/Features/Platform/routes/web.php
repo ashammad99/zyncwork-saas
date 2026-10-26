@@ -18,13 +18,13 @@ if (filled(config('platform.domain'))) {
     Route::domain(config('platform.domain'))->name('platform.')->group(function () {
         Route::middleware('guest:platform')->group(function () {
             Route::get('/login', [AuthController::class, 'index'])->name('login');
-            Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('login.attempt');
+            Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:platform-login')->name('login.attempt');
 
             // Second step: only reachable with a pending sign-in (right password, no code yet).
             Route::get('/two-factor', [TwoFactorController::class, 'challenge'])->name('two-factor.challenge');
-            Route::post('/two-factor', [TwoFactorController::class, 'verify'])->middleware('throttle:5,1')->name('two-factor.verify');
+            Route::post('/two-factor', [TwoFactorController::class, 'verify'])->middleware('throttle:platform-two-factor')->name('two-factor.verify');
             Route::get('/two-factor/setup', [TwoFactorController::class, 'setup'])->name('two-factor.setup');
-            Route::post('/two-factor/setup', [TwoFactorController::class, 'enable'])->middleware('throttle:5,1')->name('two-factor.enable');
+            Route::post('/two-factor/setup', [TwoFactorController::class, 'enable'])->middleware('throttle:platform-two-factor-setup')->name('two-factor.enable');
         });
 
         Route::middleware(['auth:platform', RequirePlatformTwoFactor::class])->group(function () {
@@ -60,7 +60,7 @@ if (filled(config('platform.domain'))) {
 
 // Tenant host: where a support session is handed off and ended.
 Route::get('/impersonation/{token}', [ImpersonationController::class, 'consume'])
-    ->middleware('throttle:20,1')
+    ->middleware('throttle:impersonation-consume')
     ->name('impersonation.consume');
 Route::post('/impersonation/stop', [ImpersonationController::class, 'stop'])
     ->middleware('auth')

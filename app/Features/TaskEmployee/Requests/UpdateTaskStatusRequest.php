@@ -25,7 +25,7 @@ class UpdateTaskStatusRequest extends FormRequest
                 // Employees can only submit these three target statuses.
                 // Backend service (EmployeeTaskService) enforces which
                 // transitions are valid from the current status.
-                'in:' . implode(',', [
+                'in:'.implode(',', [
                     Task::STATUS_TODO,
                     Task::STATUS_IN_PROGRESS,
                     Task::STATUS_IN_REVIEW,
@@ -38,7 +38,7 @@ class UpdateTaskStatusRequest extends FormRequest
     {
         return [
             'status.required' => 'Please select a target status.',
-            'status.in'       => 'You can only move tasks to To Do, In Progress, or In Review.',
+            'status.in' => 'You can only move tasks to To Do, In Progress, or In Review.',
         ];
     }
 }

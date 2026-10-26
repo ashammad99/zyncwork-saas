@@ -6,8 +6,8 @@ use App\Core\BaseService;
 use App\Features\Auth\Models\User;
 use App\Features\TaskAdmin\Models\Task;
 use App\Features\TimeLog\Models\TimeLog;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class TimerService extends BaseService
 {
@@ -21,10 +21,10 @@ class TimerService extends BaseService
             $this->stopActiveIfAny($user);
 
             return TimeLog::create([
-                'task_id'    => $task->id,
-                'user_id'    => $user->id,
+                'task_id' => $task->id,
+                'user_id' => $user->id,
                 'started_at' => now(),
-                'ended_at'   => null,
+                'ended_at' => null,
                 'entry_type' => TimeLog::TYPE_TIMER,
             ]);
         });
@@ -99,11 +99,11 @@ class TimerService extends BaseService
      */
     protected function finalize(TimeLog $timer): TimeLog
     {
-        $endedAt  = Carbon::now();
+        $endedAt = Carbon::now();
         $duration = (int) $timer->started_at->diffInMinutes($endedAt);
 
         $timer->update([
-            'ended_at'         => $endedAt,
+            'ended_at' => $endedAt,
             'duration_minutes' => $duration,
         ]);
 

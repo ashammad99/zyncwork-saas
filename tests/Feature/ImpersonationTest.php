@@ -5,18 +5,23 @@ namespace Tests\Feature;
 use App\Core\Tenancy\TenantContext;
 use App\Features\ActivityLog\Models\ActivityLog;
 use App\Features\Auth\Models\User;
+use App\Features\Onboarding\Models\UserInvitation;
 use App\Features\Platform\Models\PlatformAdmin;
 use App\Features\Platform\Models\PlatformAuditLog;
 use App\Features\Platform\Models\PlatformImpersonation;
 use App\Features\Tenancy\Models\Tenant;
+use App\Features\TenantExport\Models\TenantExport;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
@@ -96,7 +101,7 @@ class ImpersonationTest extends TestCase
         return PlatformImpersonation::sole();
     }
 
-    private function tenantLog(): \Illuminate\Support\Collection
+    private function tenantLog(): Collection
     {
         return app(TenantContext::class)->run($this->tenant->id, fn () => ActivityLog::orderBy('id')->get());
     }
@@ -282,23 +287,28 @@ class ImpersonationTest extends TestCase
         $this->get($this->requestSession($tenantAdmin))->assertRedirect();
         $this->assertAuthenticatedAs($tenantAdmin, 'web');
 
-        $newUser = [
-            'name' => 'Backdoor',
-            'email' => 'backdoor@example.com',
-            'password' => 'new-password-123',
-            'password_confirmation' => 'new-password-123',
-            'role' => 'admin',
-            'is_active' => true,
-        ];
-
         // A valid reset token for another user: the block, not a bad token, must stop it.
         Mail::fake();
         DB::table('password_reset_tokens')->insert(['email' => $other->email, 'token' => Hash::make('valid-token'), 'created_at' => now()]);
 
+        // Likewise a valid, open invitation (new users join only by invitation).
+        $invitation = app(TenantContext::class)->run($this->tenant->id, fn () => UserInvitation::create([
+            'email' => 'invited@example.com',
+            'role' => 'admin',
+            'invited_by' => $tenantAdmin->id,
+            'token_hash' => hash('sha256', 'valid-invite-token'),
+            'expires_at' => now()->addDays(7),
+        ]));
+
         $blocked = [
             ['POST', '/auth/forgot-password', ['email' => $tenantAdmin->email]],
             ['POST', '/auth/reset-password', ['token' => 'valid-token', 'email' => $other->email, 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123']],
-            ['POST', '/admin/users', $newUser],
+            ['POST', '/admin/invitations', ['email' => 'backdoor@example.com', 'role' => 'admin']],
+            ['POST', "/admin/invitations/{$invitation->id}/resend", []],
+            ['DELETE', "/admin/invitations/{$invitation->id}", []],
+            ['GET', '/invitations/valid-invite-token', []],
+            ['POST', '/invitations/valid-invite-token', ['name' => 'Backdoor', 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123']],
+            ['POST', '/auth/register', ['company_name' => 'Backdoor Inc', 'name' => 'Backdoor', 'email' => 'backdoor@example.com', 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123']],
             ['PUT', "/admin/users/{$other->id}", ['name' => $other->name, 'email' => 'taken-over@example.com', 'role' => 'admin', 'is_active' => true, 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123']],
             ['PUT', "/admin/users/{$tenantAdmin->id}", ['name' => $tenantAdmin->name, 'email' => 'self@example.com', 'role' => 'admin', 'is_active' => true]],
             ['PUT', '/admin/profile', ['name' => 'Renamed', 'email' => 'profile@example.com']],
@@ -321,6 +331,15 @@ class ImpersonationTest extends TestCase
         Mail::assertNothingSent();
         $this->assertSame(1, DB::table('password_reset_tokens')->count());
 
+        // No invitation was created, resent, revoked or used.
+        app(TenantContext::class)->run($this->tenant->id, function () use ($invitation) {
+            $this->assertSame(1, UserInvitation::count());
+            $this->assertTrue($invitation->fresh()->isOpen());
+            $this->assertSame(hash('sha256', 'valid-invite-token'), $invitation->fresh()->token_hash);
+            $this->assertFalse(User::where('email', 'invited@example.com')->exists());
+        });
+        $this->assertSame(1, Tenant::count());
+
         // Blocked requests are refused before they run, so none is logged as a change.
         $this->assertSame(0, PlatformAuditLog::where('action', PlatformAuditLog::IMPERSONATION_ACTION)->count());
         // The session itself carries on.
@@ -333,15 +352,86 @@ class ImpersonationTest extends TestCase
         $this->get($this->requestSession($tenantAdmin))->assertRedirect();
 
         $routes = collect(app('router')->getRoutes()->getRoutes())
-            ->filter(fn ($route) => str_starts_with((string) $route->getName(), 'admin.users.'))
+            ->filter(fn ($route) => str_starts_with((string) $route->getName(), 'admin.users.')
+                || str_starts_with((string) $route->getName(), 'admin.invitations.')
+                || str_starts_with((string) $route->getName(), 'invitations.'))
             ->reject(fn ($route) => in_array('GET', $route->methods(), true));
 
-        $this->assertNotEmpty($routes);
+        // update, invite, resend, revoke, accept.
+        $this->assertCount(5, $routes);
+
+        // A real invitation: route model binding runs first, so a made-up id would 404 instead.
+        $invitation = app(TenantContext::class)->run($this->tenant->id, fn () => UserInvitation::create([
+            'email' => 'invited@example.com',
+            'role' => 'employee',
+            'invited_by' => $tenantAdmin->id,
+            'token_hash' => hash('sha256', 'any-token'),
+            'expires_at' => now()->addDays(7),
+        ]));
 
         foreach ($routes as $route) {
-            $uri = str_replace('{user}', (string) $tenantAdmin->id, $route->uri());
+            $uri = str_replace(['{user}', '{invitation}', '{token}'], [(string) $tenantAdmin->id, (string) $invitation->id, 'any-token'], $route->uri());
             $this->call($route->methods()[0], "/{$uri}")->assertForbidden();
         }
+    }
+
+    public function test_billing_writes_are_blocked_while_acting_as_a_tenant_admin(): void
+    {
+        $tenantAdmin = $this->makeUser('admin');
+        $this->tenant->forceFill(['billing_email' => 'accounts@example.com'])->save();
+        $this->get($this->requestSession($tenantAdmin))->assertRedirect();
+
+        // Viewing is fine: support may need to see what the customer sees.
+        $this->get('/admin/billing')->assertOk();
+
+        $writes = collect(app('router')->getRoutes()->getRoutes())
+            ->filter(fn ($route) => str_starts_with((string) $route->getName(), 'admin.billing.'))
+            ->reject(fn ($route) => in_array('GET', $route->methods(), true));
+        $this->assertCount(1, $writes);
+
+        foreach ($writes as $route) {
+            $this->call($route->methods()[0], '/'.$route->uri(), ['billing_email' => 'support@evil.test'])->assertForbidden();
+        }
+
+        $this->assertSame('accounts@example.com', $this->tenant->fresh()->billing_email);
+    }
+
+    public function test_data_exports_cannot_be_started_or_downloaded_while_acting_as_a_tenant_admin(): void
+    {
+        Storage::fake('local');
+        Mail::fake();
+        $tenantAdmin = $this->makeUser('admin');
+
+        // A real, ready export with a valid signed link: the block, not a bad link, must stop it.
+        $export = app(TenantContext::class)->run($this->tenant->id, function () use ($tenantAdmin) {
+            $export = (new TenantExport)->forceFill([
+                'requested_by' => $tenantAdmin->id, 'status' => TenantExport::STATUS_READY,
+                'file_path' => 'exports/x.zip', 'expires_at' => now()->addDays(7),
+            ]);
+            $export->save();
+
+            return $export;
+        });
+        Storage::disk('local')->put('exports/x.zip', 'zip');
+        $url = URL::temporarySignedRoute('admin.exports.download', now()->addHour(), ['export' => $export->id]);
+
+        $this->get($this->requestSession($tenantAdmin))->assertRedirect();
+        $this->assertAuthenticatedAs($tenantAdmin, 'web');
+
+        $this->post('/admin/exports')->assertForbidden();
+        $this->get($url)->assertForbidden();
+
+        $this->assertSame(1, app(TenantContext::class)->run($this->tenant->id, fn () => TenantExport::count()));
+        $this->assertNull($export->fresh()->downloaded_at);
+    }
+
+    public function test_a_support_session_does_not_bypass_email_verification(): void
+    {
+        $this->target->forceFill(['email_verified_at' => null])->saveQuietly();
+        $this->beginSupportSession();
+
+        $this->get('/timesheets')->assertRedirect(route('verification.notice'));
+        $this->post('/user/notification/read-all')->assertForbidden();
     }
 
     public function test_deactivating_the_admin_ends_a_running_session(): void

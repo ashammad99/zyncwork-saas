@@ -9,26 +9,28 @@ use Illuminate\Support\Str;
 class MakeFeatureControllerCommand extends Command
 {
     protected $signature = 'make:feature:controller {feature : Feature name} {path* : [Role] [Name] (Name defaults to Controller)}';
+
     protected $description = 'Create a controller inside a feature';
 
     public function handle(): void
     {
         $feature = $this->argument('feature');
-        $path    = $this->argument('path');
+        $path = $this->argument('path');
 
         // Resolve name and role from path
         $name = Str::studly(array_pop($path));
-        $name = Str::endsWith($name, 'Controller') ? $name : $name . 'Controller';
+        $name = Str::endsWith($name, 'Controller') ? $name : $name.'Controller';
 
-        $rolePath  = !empty($path) ? implode('/', $path) : '';
-        $fullPath  = !empty($rolePath) ? "{$feature}/{$rolePath}" : $feature;
+        $rolePath = ! empty($path) ? implode('/', $path) : '';
+        $fullPath = ! empty($rolePath) ? "{$feature}/{$rolePath}" : $feature;
 
-        $parts      = array_map(fn($p) => Str::studly($p), explode('/', $fullPath));
-        $namespace  = 'App\\Features\\' . implode('\\', $parts) . '\\Controllers';
-        $filePath   = app_path('Features/' . implode('/', $parts) . "/Controllers/{$name}.php");
+        $parts = array_map(fn ($p) => Str::studly($p), explode('/', $fullPath));
+        $namespace = 'App\\Features\\'.implode('\\', $parts).'\\Controllers';
+        $filePath = app_path('Features/'.implode('/', $parts)."/Controllers/{$name}.php");
 
         if (File::exists($filePath)) {
             $this->error("Controller [{$name}] already exists!");
+
             return;
         }
 

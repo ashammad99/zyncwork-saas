@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Zyncwork is an internal project-management app with three portals: **admin**, **manager**, and **employee**. It covers projects, tasks, time tracking and approval, comments and mentions, notifications, dashboards, and CSV/PDF time reports.
 
-Stack (from the lock files): PHP ^8.2, Laravel 12.56, inertia-laravel 3.0, @inertiajs/react 3.0, React 19.2 (plain `.jsx`, no TypeScript), Tailwind 4.2, Vite 7, Chart.js, lucide-react, and barryvdh/laravel-dompdf for PDFs. Dev and production use MySQL (`.env`, database `zyncwork_saas_db`). Tests also use MySQL, on a separate database, `zyncwork_saas_db_test`, set in `phpunit.xml` with `force="true"`. `tests/TestCase.php` refuses to boot against any other database, because `RefreshDatabase` drops every table. There is no CI, no Docker, and no JS linter or test runner.
+Stack (from the lock files): PHP ^8.2, Laravel 12.69, inertia-laravel 3.0, @inertiajs/react 3.0, React 19.2 (plain `.jsx`, no TypeScript), Tailwind 4.2, Vite 7, Chart.js, lucide-react, and barryvdh/laravel-dompdf for PDFs. Dev and production use MySQL (`.env`, database `zyncwork_saas_db`). Tests also use MySQL, on a separate database, `zyncwork_saas_db_test`, set in `phpunit.xml` with `force="true"`. `tests/TestCase.php` refuses to boot against any other database, because `RefreshDatabase` drops every table. CI runs on GitHub Actions (see CI below). There is no Docker, and no JS linter or test runner.
 
 The project was scaffolded from the "Laravel FeatureKit" starter. `.agent/agent.md` (and the longer `DOCS.md`) documents the kit's shared React components, hooks (`@/Hooks`), utilities (`@/Utils`), `GeneralMail`, and Tailwind tokens. Read the relevant section before writing a new UI primitive, hook, helper, or mailable. One of the kit's layout examples there is outdated for this project; see Frontend below.
 
@@ -19,6 +19,8 @@ composer test                                 # config:clear + full suite (needs
 php artisan test --filter=ProjectTimelineTest # one class (or --filter=test_method_name)
 php artisan route:list --path=manager/projects  # check real URLs/names/middleware before touching routes
 npm run build                                 # writes public/build/ (tracked in git)
+vendor/bin/pint --dirty                       # format the PHP files you changed (CI fails on unformatted code)
+vendor/bin/pint --test                        # check only, as CI does
 php artisan migrate --seed                    # seeds 3 users: admin@/manager@/emp@example.com, password 12345678
 ```
 
@@ -45,7 +47,8 @@ The seeder creates no departments. Managers without a `department_id` fail most 
   2. Policies: `TaskPolicy`, `TimeLogPolicy`, `CommentPolicy`, `ProjectPolicy`, `SettingPolicy`. Every policy's `before()` grants admins everything. Some route groups have no role middleware and rely on the policy alone (e.g. `Projects/Manager` routes).
 - Policies are auto-discovered only when they sit in the `Policies/` folder next to the model's `Models/` folder. Otherwise register them in `AppServiceProvider` (as is done for `Project` → `Projects/Manager/Policies/ProjectPolicy`).
 - **Manager scoping** means `$user->department_id` equals the resource's department (`project.department_id`, or `task.project.department_id`). `departments.manager_id` is a separate field, used only for deciding who receives notifications. Every manager-facing query and export must clamp to the manager's own department on the server, ignoring any `department_id` sent in the request (see `TimeLogExportController`).
-- The `verified` middleware is effectively a no-op: `User` does not implement `MustVerifyEmail`.
+- **Email verification is enforced for every tenant user.** `User` implements `MustVerifyEmail`, and `Core/Middleware/EnsureEmailIsVerified` sits in the `web` group, not on individual routes. An unverified user can reach only the `verification.*` routes and `logout`: pages redirect to the verify screen, and every other request gets a 403. Changing a user's email, by any path, clears `email_verified_at` and sends a new link (in the `User` model's events). Users that existed before Phase 1C were marked verified by a migration.
+- **Onboarding** (`Features/Onboarding`): public company signup (`/auth/register`) creates a tenant plus its first admin, who starts unverified. New users join an existing tenant only by invitation. Verified tenant admins invite (`admin.invitations.*`, `InvitationService`); the invitee accepts at `/invitations/{token}`, sets their own password, and is verified on acceptance. Tokens are stored as SHA-256 hashes, work once, and expire after 7 days (`config/onboarding.php`). There is no direct user creation (`admin.users.store` was removed).
 - Suspension (`users.is_active=false`, or the user's tenant having `suspended_at` set) is checked at login (`LoginService`). `Core/Middleware/EnsureUserIsActive`, in the web group, also logs such a user out on their next request. It only checks tenant users (the `web` guard) and skips the platform host.
 - **Platform admins** (`Features/Platform`, `platform` guard, `platform_admins` table) sign in on `PLATFORM_DOMAIN` only, and TOTP is required (`PlatformTwoFactorService`, `RequirePlatformTwoFactor`). Accounts, capabilities, password resets and 2FA resets are managed only with `php artisan platform:admin`.
   - `PLATFORM_DOMAIN` has no default. Production refuses to boot without it, and elsewhere the console isn't served when it's unset.
@@ -74,6 +77,7 @@ The seeder creates no departments. Managers without a `department_id` fail most 
 ## Database & migrations
 
 - Never edit or delete an existing migration. Add a new one, and ask before any schema change, destructive migration, `migrate:fresh`, or `migrate:rollback` against a real database.
+- Migrations roll back cleanly, with one deliberate exception: `2026_09_29_100001_mark_existing_users_verified` has an empty `down()`. Rolling it back succeeds, but the `email_verified_at` values it set stay in place. It sets them only where the column is null, and it keeps no record of which rows those were, so a rollback can't tell them apart from users who verified themselves. Clearing them would lock those users out. The code before Phase 1C never reads the column, so the leftover values are harmless after a rollback. Don't copy this pattern: a data migration that has to be reversible should record which rows it changed.
 - The app and the tests both run on MySQL. Prefer Eloquent or the query builder over raw SQL. Some migrations and tests still contain SQLite workarounds from when the tests ran on SQLite; leave them alone.
 - Avoid MySQL-only SQL when a portable equivalent exists, even though nothing runs on SQLite any more. `EmployeeTaskService` once had to be rewritten to replace `FIELD()` with a `CASE` expression. If a query really needs MySQL-only SQL, say so in a comment and call it out in the change summary, so nobody adds one unnoticed.
 - Never point tests, `migrate:fresh`, or `migrate:rollback` at `zyncwork_saas_db`. Other projects' databases share the same local MySQL server.
@@ -81,16 +85,25 @@ The seeder creates no departments. Managers without a `department_id` fail most 
 - Columns like `tasks.status`, `priority`, `impact`, `effort`, `projects.status`, and `time_logs.entry_type` are DB enums. Adding a value needs a migration plus model constants, validation rules, all transition maps, and frontend labels.
 - `ProjectFactory` and `UserFactory` exist, but `Project` doesn't use `HasFactory`. Tests build fixtures with `Model::create()`.
 
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `ahmed-1`:
+
+- **tests** (blocking): PHP 8.2 and a MySQL 8.0 service container that creates `zyncwork_saas_db_test`. It runs `migrate`, `migrate:rollback`, and `migrate` again, so every migration must also roll back on a fresh database, then `composer test`. A new PHP extension or env var the suite needs must be added to the workflow too.
+- **pint** (blocking): `vendor/bin/pint --test`.
+- **frontend** (non-blocking for now): `npm ci && npm run build`, then fails if `public/build` differs from the committed build.
+- **audit** (non-blocking for now): `composer audit --locked`.
+
 ## Working rules
 
 - Investigate before changing anything. Read the existing implementation, its callers, the related policy, and the route (`route:list`) first. Prefer the pattern already used in the same feature.
 - Make the smallest change that solves the task and preserve existing behavior unless the task is to change it. Change only the files you need to.
 - No opportunistic refactors, reformatting, renames or moves (of classes, routes, route names, columns, directories), new abstractions, or new packages without a concrete need.
 - Don't change auth, policies, role middleware, `bootstrap/app.php`, `app/Core`, shared props, or the DB schema until you understand everything that depends on them. Call out such changes explicitly.
-- **The codebase is not Pint-clean.** Don't run `pint` on the repo or on existing files, because it rewrites whole files. If you do format, limit it to files you created (`vendor/bin/pint path/to/NewFile.php`).
-- Behavior changes need tests: feature tests in `tests/Feature/` that use `RefreshDatabase`, hand-built fixtures, `actingAs`, and `Carbon::setTestNow` for date logic. Cover role and department scoping (admin, same-department manager, other-department manager, employee), following the existing tests.
+- **Pint is enforced.** The codebase is Pint-clean (Laravel preset, `pint.json`) and CI fails on any unformatted PHP file. Run `vendor/bin/pint --dirty` before committing. The one repo-wide reformat commit is listed in `.git-blame-ignore-revs`; run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once so local `git blame` skips it (GitHub does this automatically).
+- Behavior changes need tests: feature tests in `tests/Feature/` that use `RefreshDatabase`, hand-built fixtures, `actingAs`, and `Carbon::setTestNow` for date logic. Users created in tests start verified (`TestCase::$usersStartVerified`); onboarding tests set it to `false`. Cover role and department scoping (admin, same-department manager, other-department manager, employee), following the existing tests.
 - Never weaken or edit a test just to make it pass. Run the targeted test first, then `composer test`. Report pre-existing failures separately from ones your change introduced, and never claim something works without having run it.
-- `public/build/` is committed. After frontend changes, ask before rebuilding or committing build output.
+- `public/build/` is committed. After frontend changes, ask before rebuilding or committing build output. CI rebuilds it and flags a mismatch (non-blocking for now).
 - Ask before destructive or hard-to-reverse actions: data deletion, dropping tables, force pushes, or deleting files you didn't create.
 
 ## Known pitfalls

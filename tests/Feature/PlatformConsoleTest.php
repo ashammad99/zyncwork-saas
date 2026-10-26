@@ -9,9 +9,11 @@ use App\Features\Platform\Models\PlatformAuditLog;
 use App\Providers\AppServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\RouteCollection;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia;
 use LogicException;
+use PragmaRX\Google2FA\Google2FA;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -61,7 +63,7 @@ class PlatformConsoleTest extends TestCase
             ->assertRedirect(route('platform.two-factor.challenge'));
         $this->assertGuest('platform');
 
-        $this->post($this->platform('/two-factor'), ['code' => app(\PragmaRX\Google2FA\Google2FA::class)->getCurrentOtp($this->secret)])
+        $this->post($this->platform('/two-factor'), ['code' => app(Google2FA::class)->getCurrentOtp($this->secret)])
             ->assertRedirect(route('platform.tenants.index'));
 
         $this->assertAuthenticatedAs($admin, 'platform');
@@ -305,7 +307,7 @@ class PlatformConsoleTest extends TestCase
 
         $this->get($this->platform('/billing'))->assertInertia(fn (AssertableInertia $page) => $page
             ->component('(platform)/billing/Index')
-            ->where('tenants.0.plan', null));
+            ->where('tenants.0.plan', 'Trial'));
 
         $this->get($this->platform('/health'))->assertInertia(fn (AssertableInertia $page) => $page->component('(platform)/health/page'));
         $this->get($this->platform('/cache'))->assertInertia(fn (AssertableInertia $page) => $page->component('(platform)/cache/page'));
@@ -325,7 +327,7 @@ class PlatformConsoleTest extends TestCase
         $user = $this->makeUser('admin');
 
         foreach (PlatformAdmin::CAPABILITIES as $capability) {
-            $this->assertFalse(\Illuminate\Support\Facades\Gate::forUser($user)->allows("platform.{$capability}"));
+            $this->assertFalse(Gate::forUser($user)->allows("platform.{$capability}"));
         }
     }
 }

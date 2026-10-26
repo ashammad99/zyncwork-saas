@@ -4,10 +4,11 @@ namespace Tests\Feature\Concerns;
 
 use App\Features\Platform\Middleware\RequirePlatformTwoFactor;
 use App\Features\Platform\Models\PlatformAdmin;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
-use PragmaRX\Google2FA\Google2FA;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Facade;
+use PragmaRX\Google2FA\Google2FA;
 
 /**
  * For tests that send requests to both the platform and the tenant host.
@@ -53,7 +54,7 @@ trait CrossesPlatformHost
      * (TwoFactorController), and RequirePlatformTwoFactor rejects sessions
      * without one, so acting as a platform admin stores it too.
      */
-    public function actingAs(\Illuminate\Contracts\Auth\Authenticatable $user, $guard = null)
+    public function actingAs(Authenticatable $user, $guard = null)
     {
         if ($guard === 'platform') {
             $this->putInPlatformSession([RequirePlatformTwoFactor::PASSWORD_FINGERPRINT => $user->passwordFingerprint()]);

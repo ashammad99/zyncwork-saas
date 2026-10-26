@@ -17,6 +17,7 @@ class ManagerTimesheetDepartmentScopeTest extends TestCase
     use RefreshDatabase;
 
     private Department $deptA;
+
     private Department $deptB;
 
     protected function setUp(): void
@@ -41,7 +42,7 @@ class ManagerTimesheetDepartmentScopeTest extends TestCase
     {
         return User::create(array_merge([
             'name' => 'Test User',
-            'email' => uniqid('user_') . '@example.com',
+            'email' => uniqid('user_').'@example.com',
             'password' => Hash::make('password'),
             'role' => 'employee',
             'is_active' => true,

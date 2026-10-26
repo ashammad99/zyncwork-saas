@@ -3,13 +3,12 @@
 namespace App\Features\Notification\Services;
 
 use App\Core\BaseService;
+use App\Features\Auth\Models\User;
 use App\Features\Notification\Events\NotificationCreated;
 use App\Features\TaskAdmin\Models\Task;
-use App\Features\Auth\Models\User;
 
 class TaskNotifierService extends BaseService
 {
-
     /**
      * Notify a user they've been assigned a task.
      * Safe to call with null assignee or self-assignment — both no-op.
@@ -29,7 +28,7 @@ class TaskNotifierService extends BaseService
         event(new NotificationCreated(
             $assignee,
             "You've been assigned a task: {$task->title}",
-            "Assigned by {$actor->name}" . ($task->due_date ? " · due {$task->due_date->format('M j, Y')}" : ""),
+            "Assigned by {$actor->name}".($task->due_date ? " · due {$task->due_date->format('M j, Y')}" : ''),
             'task_assigned',
         ));
     }

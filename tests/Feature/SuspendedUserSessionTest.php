@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Core\Middleware\HandleInertiaRequests;
 use App\Features\Auth\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -15,7 +16,7 @@ class SuspendedUserSessionTest extends TestCase
     {
         return User::create(array_merge([
             'name' => 'Test User',
-            'email' => uniqid('user_') . '@example.com',
+            'email' => uniqid('user_').'@example.com',
             'password' => Hash::make('password'),
             'role' => 'employee',
             'is_active' => true,
@@ -46,7 +47,7 @@ class SuspendedUserSessionTest extends TestCase
     public function test_suspended_user_inertia_request_gets_full_page_redirect_to_login(): void
     {
         $user = $this->makeUser(['is_active' => false]);
-        $version = (string) app(\App\Core\Middleware\HandleInertiaRequests::class)->version(request());
+        $version = (string) app(HandleInertiaRequests::class)->version(request());
 
         $this->actingAs($user)
             ->get('/timesheets', ['X-Inertia' => 'true', 'X-Inertia-Version' => $version])

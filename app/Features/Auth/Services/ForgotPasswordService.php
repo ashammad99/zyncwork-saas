@@ -17,16 +17,13 @@ class ForgotPasswordService extends BaseService
 {
     /**
      * Send a reset link to the given user.
-     *
-     * @param string $email
-     * @return string
      */
     public function sendResetLink(string $email): string
     {
         // Guest request: no tenant yet. Emails are unique platform-wide.
         $user = User::withoutTenancy()->where('email', $email)->first();
 
-        if (!$user) {
+        if (! $user) {
             return Password::INVALID_USER;
         }
 
@@ -45,12 +42,9 @@ class ForgotPasswordService extends BaseService
 
         // Send Email via Queue using GeneralMail
         Mail::to($email)->send(new GeneralMail(
-            mailSubject: 'Reset Your Password',
+            mailSubject: __('emails.reset_password.subject'),
             contentView: 'emails.auth.forgot-password-body',
             data: [
-                'title' => 'Password Reset Request',
-                'body' => 'You are receiving this email because we received a password reset request for your account. If you did not request a password reset, no further action is required.',
-                'actionText' => 'Reset Password',
                 'actionUrl' => route('password.reset', ['token' => $token, 'email' => $email]),
             ]
         ));
@@ -60,9 +54,6 @@ class ForgotPasswordService extends BaseService
 
     /**
      * Reset the given user's password.
-     *
-     * @param array $credentials
-     * @return string
      */
     public function resetPassword(array $credentials): string
     {
@@ -76,8 +67,7 @@ class ForgotPasswordService extends BaseService
                 $user->setRememberToken(Str::random(60));
 
                 // Guest request: log against the user's own tenant.
-                app(TenantContext::class)->run($user->tenant_id, fn () =>
-                    event(new ActivityLogged($user, 'password_reset', 'User password reset successfully.', 'security'))
+                app(TenantContext::class)->run($user->tenant_id, fn () => event(new ActivityLogged($user, 'password_reset', 'User password reset successfully.', 'security'))
                 );
             }
         );

@@ -4,16 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', config('app.name'))</title>
+    <meta name="robots" content="noindex">
 
     <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
 
     <meta name="description" content="@yield('description', 'Default description')">
-    <meta name="keywords" content="@yield('keywords', 'courses, learning')">
 
     {{-- Open Graph --}}
     <meta property="og:title" content="@yield('og_title', config('app.name'))">
     <meta property="og:description" content="@yield('og_description', 'Default description')">
-    <meta property="og:image" content="@yield('og_image', asset('default.jpg'))">
+    <meta property="og:image" content="@yield('og_image', asset('logo.png'))">
     <meta property="og:url" content="{{ url()->current() }}">
     <meta property="og:type" content="website">
 
@@ -21,7 +21,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="@yield('og_title', config('app.name'))">
     <meta name="twitter:description" content="@yield('og_description', 'Default description')">
-    <meta name="twitter:image" content="@yield('og_image', asset('default.jpg'))">
+    <meta name="twitter:image" content="@yield('og_image', asset('logo.png'))">
 
     @vite('resources/css/app.css')
 </head>
@@ -70,6 +70,13 @@
         <div class="mx-auto w-full max-w-2xl">
             @yield('content')
         </div>
+
+        {{-- The platform console shares this layout, and the public pages 404 on its host. --}}
+        @unless (request()->getHost() === config('platform.domain'))
+            <div class="mt-12 -mx-6 lg:-mx-20 xl:-mx-32">
+                @include('pages.site.partials.legal-footer')
+            </div>
+        @endunless
     </div>
 </div>
 

@@ -253,8 +253,9 @@ class CrossTenantIsolationTest extends TestCase
             'assignee_id' => $b['employee']->id,
         ])->assertInvalid(['assignee_id']);
 
-        $this->actAsAdminA()->post('/admin/users', [
-            'department_id' => $b['department']->id,
+        // Users join by invitation (Phase 1C); the invite carries the department.
+        $this->actAsAdminA()->post('/admin/invitations', [
+            'email' => 'new-person@example.com', 'role' => 'employee', 'department_id' => $b['department']->id,
         ])->assertInvalid(['department_id']);
 
         $this->actAsAdminA()->post('/admin/departments', [
@@ -282,7 +283,7 @@ class CrossTenantIsolationTest extends TestCase
         $this->assertTrue(Department::where('name', 'b-department')->exists());
 
         // ...but user emails stay unique across the whole platform.
-        $this->actAsAdminA()->post('/admin/users', ['email' => 'b-employee@example.com'])->assertInvalid(['email']);
+        $this->actAsAdminA()->post('/admin/invitations', ['email' => 'b-employee@example.com', 'role' => 'employee'])->assertInvalid(['email']);
     }
 
     // ── Model layer: fails closed, never writes across tenants ────────────

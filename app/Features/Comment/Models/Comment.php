@@ -1,12 +1,13 @@
 <?php
 
 namespace App\Features\Comment\Models;
+
+use App\Core\Tenancy\BelongsToTenant;
 use App\Features\Auth\Models\User;
 use App\Features\TaskAdmin\Models\Task;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Core\Tenancy\BelongsToTenant;
 
 class Comment extends Model
 {

@@ -2,10 +2,10 @@
 
 namespace App\Features\Departments\Admin\Models;
 
+use App\Core\Tenancy\BelongsToTenant;
 use App\Features\Auth\Models\User;
 use App\Features\Projects\Admin\Models\Project;
 use Illuminate\Database\Eloquent\Model;
-use App\Core\Tenancy\BelongsToTenant;
 
 class Department extends Model
 {

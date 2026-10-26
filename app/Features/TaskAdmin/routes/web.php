@@ -5,7 +5,6 @@ use Illuminate\Support\Facades\Route;
 
 // TaskAdmin web routes
 
-
 /*
 |--------------------------------------------------------------------------
 | Admin — Task Routes

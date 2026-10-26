@@ -2,12 +2,12 @@
 
 namespace App\Features\TimeLog\Models;
 
+use App\Core\Tenancy\BelongsToTenant;
 use App\Features\Auth\Models\User;
 use App\Features\TaskAdmin\Models\Task;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Builder;
-use App\Core\Tenancy\BelongsToTenant;
 
 class TimeLog extends Model
 {
@@ -26,10 +26,11 @@ class TimeLog extends Model
 
     protected $casts = [
         'started_at' => 'datetime',
-        'ended_at'   => 'datetime',
+        'ended_at' => 'datetime',
     ];
 
-    const TYPE_TIMER  = 'timer';
+    const TYPE_TIMER = 'timer';
+
     const TYPE_MANUAL = 'manual';
 
     // ── Relationships ──────────────────────────────────────────────────────
@@ -108,7 +109,7 @@ class TimeLog extends Model
      * no N+1), so callers' existing scoping is reused, never duplicated here.
      * Zero-fills statuses with no logged time.
      */
-    public static function loggedMinutesByTaskStatus(\Illuminate\Database\Eloquent\Builder $taskQuery): array
+    public static function loggedMinutesByTaskStatus(Builder $taskQuery): array
     {
         $rows = static::query()
             ->join('tasks', 'tasks.id', '=', 'time_logs.task_id')

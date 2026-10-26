@@ -3,11 +3,10 @@
 namespace App\Features\Profile\User\Controllers;
 
 use App\Core\BaseController;
-
-use Inertia\Inertia;
-use App\Features\Profile\User\Services\ProfileService;
-use App\Features\Profile\User\Requests\UpdateProfileRequest;
 use App\Features\Profile\User\Requests\UpdatePasswordRequest;
+use App\Features\Profile\User\Requests\UpdateProfileRequest;
+use App\Features\Profile\User\Services\ProfileService;
+use Inertia\Inertia;
 
 class ProfileController extends BaseController
 {
@@ -48,9 +47,9 @@ class ProfileController extends BaseController
     protected function portalPage(string $suffix): string
     {
         $portal = match (auth()->user()->role) {
-            'manager'  => 'manager',
+            'manager' => 'manager',
             'employee' => 'employee',
-            default    => 'user',
+            default => 'user',
         };
 
         return "(portals)/{$portal}/{$suffix}";

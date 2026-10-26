@@ -1,8 +1,10 @@
 <?php
 
 namespace App\Models;
+
 namespace App\Features\TaskAdmin\Models;
 
+use App\Core\Tenancy\BelongsToTenant;
 use App\Features\Auth\Models\User;
 use App\Features\Comment\Models\Comment;
 use App\Features\Projects\Admin\Models\Project;
@@ -11,7 +13,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Core\Tenancy\BelongsToTenant;
 
 class Task extends Model
 {
@@ -38,19 +39,23 @@ class Task extends Model
     ];
 
     protected $casts = [
-        'due_date'           => 'date',
+        'due_date' => 'date',
         'recurrence_ends_at' => 'date',
-        'completed_at'       => 'datetime',
-        'is_recurring'       => 'boolean',
-        'estimated_hours'    => 'decimal:2',
+        'completed_at' => 'datetime',
+        'is_recurring' => 'boolean',
+        'estimated_hours' => 'decimal:2',
     ];
 
     // ── Status constants ───────────────────────────────────────────────────
-    const STATUS_BACKLOG     = 'backlog';
-    const STATUS_TODO        = 'todo';
+    const STATUS_BACKLOG = 'backlog';
+
+    const STATUS_TODO = 'todo';
+
     const STATUS_IN_PROGRESS = 'in_progress';
-    const STATUS_IN_REVIEW   = 'in_review';
-    const STATUS_COMPLETED   = 'completed';
+
+    const STATUS_IN_REVIEW = 'in_review';
+
+    const STATUS_COMPLETED = 'completed';
 
     const STATUSES = [
         self::STATUS_BACKLOG,
@@ -61,9 +66,12 @@ class Task extends Model
     ];
 
     // ── Priority constants ─────────────────────────────────────────────────
-    const PRIORITY_LOW    = 'low';
+    const PRIORITY_LOW = 'low';
+
     const PRIORITY_MEDIUM = 'medium';
-    const PRIORITY_HIGH   = 'high';
+
+    const PRIORITY_HIGH = 'high';
+
     const PRIORITY_URGENT = 'urgent';
 
     const PRIORITIES = [
@@ -109,10 +117,10 @@ class Task extends Model
         return $this->hasMany(Comment::class)->whereNull('parent_id')->with('replies.user');
     }
 
-//    public function attachments(): HasMany
-//    {
-//        return $this->hasMany(Attachment::class);
-//    }
+    //    public function attachments(): HasMany
+    //    {
+    //        return $this->hasMany(Attachment::class);
+    //    }
 
     // ── Helpers ────────────────────────────────────────────────────────────
     public function isCompleted(): bool

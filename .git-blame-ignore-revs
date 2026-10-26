@@ -1,0 +1,6 @@
+# Formatting-only commits that `git blame` should skip.
+# GitHub applies this file automatically. Locally, run once:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: apply Pint (Laravel preset) across the codebase
+a0701f53562754e9c061ca891ad5abe72493a401

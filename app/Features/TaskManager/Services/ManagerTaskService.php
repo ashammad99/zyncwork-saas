@@ -4,11 +4,11 @@ namespace App\Features\TaskManager\Services;
 
 use App\Core\BaseService;
 use App\Features\Auth\Models\User;
+use App\Features\Notification\Services\TaskNotifierService;
 use App\Features\Projects\Admin\Models\Project;
 use App\Features\TaskAdmin\Models\Task;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use App\Features\Notification\Services\TaskNotifierService;
 
 class ManagerTaskService extends BaseService
 {
@@ -16,13 +16,14 @@ class ManagerTaskService extends BaseService
         // ...existing deps...
         private readonly TaskNotifierService $notifier,
     ) {}
-// ─── Valid transitions a manager can perform ──────────────────────────────
+
+    // ─── Valid transitions a manager can perform ──────────────────────────────
     private const ALLOWED_TRANSITIONS = [
-        Task::STATUS_BACKLOG      => [Task::STATUS_TODO],
-        Task::STATUS_TODO         => [Task::STATUS_IN_PROGRESS],
-        Task::STATUS_IN_PROGRESS  => [Task::STATUS_IN_REVIEW],
-        Task::STATUS_IN_REVIEW    => [Task::STATUS_COMPLETED, Task::STATUS_IN_PROGRESS],
-        Task::STATUS_COMPLETED    => [Task::STATUS_TODO], // reactivate
+        Task::STATUS_BACKLOG => [Task::STATUS_TODO],
+        Task::STATUS_TODO => [Task::STATUS_IN_PROGRESS],
+        Task::STATUS_IN_PROGRESS => [Task::STATUS_IN_REVIEW],
+        Task::STATUS_IN_REVIEW => [Task::STATUS_COMPLETED, Task::STATUS_IN_PROGRESS],
+        Task::STATUS_COMPLETED => [Task::STATUS_TODO], // reactivate
     ];
 
     // ─── List ─────────────────────────────────────────────────────────────────
@@ -30,31 +31,30 @@ class ManagerTaskService extends BaseService
     public function getAll(User $manager, array $filters = [])
     {
         $query = Task::with(['assignee', 'project', 'dependency'])
-            ->whereHas('project', fn ($q) =>
-            $q->where('department_id', $manager->department_id)
+            ->whereHas('project', fn ($q) => $q->where('department_id', $manager->department_id)
             );
 
-        if (!empty($filters['search'])) {
-            $query->where('title', 'like', '%' . $filters['search'] . '%');
+        if (! empty($filters['search'])) {
+            $query->where('title', 'like', '%'.$filters['search'].'%');
         }
 
-        if (!empty($filters['status'])) {
+        if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
         }
 
-        if (!empty($filters['priority'])) {
+        if (! empty($filters['priority'])) {
             $query->where('priority', $filters['priority']);
         }
 
-        if (!empty($filters['project_id'])) {
+        if (! empty($filters['project_id'])) {
             $query->where('project_id', $filters['project_id']);
         }
 
-        if (!empty($filters['assignee_id'])) {
+        if (! empty($filters['assignee_id'])) {
             $query->where('assignee_id', $filters['assignee_id']);
         }
 
-        if (!empty($filters['due_date'])) {
+        if (! empty($filters['due_date'])) {
             $query->whereDate('due_date', $filters['due_date']);
         }
 
@@ -73,8 +73,7 @@ class ManagerTaskService extends BaseService
             'dependents.assignee',
             'timeLogs.user',
         ])
-            ->whereHas('project', fn ($q) =>
-            $q->where('department_id', $manager->department_id)
+            ->whereHas('project', fn ($q) => $q->where('department_id', $manager->department_id)
             )
             ->findOrFail($id);
     }
@@ -86,7 +85,7 @@ class ManagerTaskService extends BaseService
         // Verify project belongs to manager's department
         $this->assertProjectInDepartment($data['project_id'], $manager->department_id);
 
-        if (!empty($data['depends_on_task_id'])) {
+        if (! empty($data['depends_on_task_id'])) {
             $this->detectCircularDependency($data['depends_on_task_id'], null);
         }
 
@@ -94,7 +93,7 @@ class ManagerTaskService extends BaseService
             $task = Task::create([
                 ...$data,
                 'created_by' => $manager->id,
-                'status'     => Task::STATUS_BACKLOG,
+                'status' => Task::STATUS_BACKLOG,
             ]);
 
             if ($task->assignee_id) {
@@ -111,7 +110,7 @@ class ManagerTaskService extends BaseService
     {
         $this->assertTaskInDepartment($task, $manager->department_id);
 
-        if (!empty($data['depends_on_task_id']) && $data['depends_on_task_id'] !== $task->depends_on_task_id) {
+        if (! empty($data['depends_on_task_id']) && $data['depends_on_task_id'] !== $task->depends_on_task_id) {
             $this->detectCircularDependency($data['depends_on_task_id'], $task->id);
         }
 
@@ -121,6 +120,7 @@ class ManagerTaskService extends BaseService
         if ($task->wasChanged('assignee_id')) {
             $this->notifier->taskAssigned($task, $task->assignee_id, $manager);
         }
+
         return $task->fresh(['assignee', 'project', 'dependency']);
     }
 
@@ -148,7 +148,7 @@ class ManagerTaskService extends BaseService
         $currentStatus = $task->status;
         $allowed = self::ALLOWED_TRANSITIONS[$currentStatus] ?? [];
 
-        if (!in_array($newStatus, $allowed)) {
+        if (! in_array($newStatus, $allowed)) {
             throw ValidationException::withMessages([
                 'status' => "Cannot transition from [{$currentStatus}] to [{$newStatus}].",
             ]);
@@ -183,6 +183,7 @@ class ManagerTaskService extends BaseService
             if ($newStatus === Task::STATUS_IN_REVIEW) {
                 $this->notifier->taskInReview($task, $manager);
             }
+
             return $task->fresh();
         });
     }
@@ -225,7 +226,7 @@ class ManagerTaskService extends BaseService
             ->where('department_id', $departmentId)
             ->exists();
 
-        if (!$exists) {
+        if (! $exists) {
             throw ValidationException::withMessages([
                 'project_id' => 'Project does not belong to your department.',
             ]);

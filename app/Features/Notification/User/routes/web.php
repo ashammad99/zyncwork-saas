@@ -1,7 +1,6 @@
 <?php
 
 use App\Features\Notification\User\Controllers\NotificationController;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 // Notification/User web routes

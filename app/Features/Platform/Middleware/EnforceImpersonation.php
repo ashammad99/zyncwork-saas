@@ -40,10 +40,27 @@ class EnforceImpersonation
      * session. Add any new route that writes users, roles or credentials here.
      */
     private const USER_MANAGEMENT_ROUTES = [
-        'admin.users.store',
         'admin.users.update',
+        'admin.invitations.store',
+        'admin.invitations.resend',
+        'admin.invitations.destroy',
+        'invitations.show',
+        'invitations.accept',
+        'auth.register.store',
         'auth.forgot-password.send',
         'password.update',
+    ];
+
+    /**
+     * Routes that change where a tenant's billing mail goes, or take its data
+     * out (the full export, including downloading one). Not user management,
+     * but support has no business doing either while signed in as a customer:
+     * blocked outright as well.
+     */
+    private const BILLING_ROUTES = [
+        'admin.billing.email.update',
+        'admin.exports.store',
+        'admin.exports.download',
     ];
 
     public function __construct(
@@ -117,7 +134,8 @@ class EnforceImpersonation
         $name = $request->route()?->getName();
 
         return in_array($name, self::OWN_CREDENTIAL_ROUTES, true)
-            || in_array($name, self::USER_MANAGEMENT_ROUTES, true);
+            || in_array($name, self::USER_MANAGEMENT_ROUTES, true)
+            || in_array($name, self::BILLING_ROUTES, true);
     }
 
     /** @return array<string, mixed> */

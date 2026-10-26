@@ -1,10 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-
-// TaskEmployee web routes
 use App\Features\TaskEmployee\Controllers\EmployeeTaskController;
-
+// TaskEmployee web routes
+use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'role:employee'])
     ->prefix('employee/tasks')

@@ -4,12 +4,11 @@ namespace App\Features\TaskEmployee\Services;
 
 use App\Core\BaseService;
 use App\Features\Auth\Models\User;
+use App\Features\Notification\Services\TaskNotifierService;
 use App\Features\Projects\Admin\Models\Project;
 use App\Features\TaskAdmin\Models\Task;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Pagination\LengthAwarePaginator;
-use App\Features\Notification\Services\TaskNotifierService;
-
+use Illuminate\Validation\ValidationException;
 
 class EmployeeTaskService extends BaseService
 {
@@ -17,13 +16,14 @@ class EmployeeTaskService extends BaseService
         // ...existing deps...
         private readonly TaskNotifierService $notifier,
     ) {}
+
     /**
      * Transitions an employee is allowed to trigger on their own tasks.
      * Matches SRS §4.4 — employees cannot mark tasks Completed or reactivate.
      */
     protected const ALLOWED_TRANSITIONS = [
-        Task::STATUS_BACKLOG     => [Task::STATUS_TODO],
-        Task::STATUS_TODO        => [Task::STATUS_IN_PROGRESS],
+        Task::STATUS_BACKLOG => [Task::STATUS_TODO],
+        Task::STATUS_TODO => [Task::STATUS_IN_PROGRESS],
         Task::STATUS_IN_PROGRESS => [Task::STATUS_IN_REVIEW],
     ];
 
@@ -41,20 +41,15 @@ class EmployeeTaskService extends BaseService
                 'dependency:id,title,status',
             ])
             ->withCount(['timeLogs', 'comments'])
-            ->when($filters['search'] ?? null, fn ($q, $s) =>
-            $q->where('title', 'like', "%{$s}%")
+            ->when($filters['search'] ?? null, fn ($q, $s) => $q->where('title', 'like', "%{$s}%")
             )
-            ->when($filters['status'] ?? null, fn ($q, $s) =>
-            $q->where('status', $s)
+            ->when($filters['status'] ?? null, fn ($q, $s) => $q->where('status', $s)
             )
-            ->when($filters['priority'] ?? null, fn ($q, $p) =>
-            $q->where('priority', $p)
+            ->when($filters['priority'] ?? null, fn ($q, $p) => $q->where('priority', $p)
             )
-            ->when($filters['project_id'] ?? null, fn ($q, $p) =>
-            $q->where('project_id', $p)
+            ->when($filters['project_id'] ?? null, fn ($q, $p) => $q->where('project_id', $p)
             )
-            ->when($filters['due'] ?? null, fn ($q, $due) =>
-            $this->applyDueFilter($q, $due)
+            ->when($filters['due'] ?? null, fn ($q, $due) => $this->applyDueFilter($q, $due)
             )
             // Priority ordering: active work first, completed last.
             // CASE instead of MySQL-only FIELD() so it also runs on SQLite (tests);
@@ -127,6 +122,7 @@ class EmployeeTaskService extends BaseService
         if ($newStatus === Task::STATUS_IN_REVIEW) {
             $this->notifier->taskInReview($task, auth()->user());
         }
+
         return $task->fresh();
     }
 
@@ -146,7 +142,7 @@ class EmployeeTaskService extends BaseService
             'projects' => Project::whereIn('id', $projectIds)
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            'statuses'   => Task::STATUSES,
+            'statuses' => Task::STATUSES,
             'priorities' => Task::PRIORITIES,
         ];
     }

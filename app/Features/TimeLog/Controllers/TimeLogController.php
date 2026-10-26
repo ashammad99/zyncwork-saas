@@ -8,8 +8,9 @@ use App\Features\TimeLog\Models\TimeLog;
 use App\Features\TimeLog\Requests\StoreManualTimeLogRequest;
 use App\Features\TimeLog\Services\TimeLogService;
 use App\Features\TimeLog\Services\TimerService;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+
 class TimeLogController extends BaseController
 {
     public function __construct(
@@ -31,7 +32,7 @@ class TimeLogController extends BaseController
         $log = $this->timerService->start($user, $task);
 
         return back()->with([
-            'success'       => 'Timer started.',
+            'success' => 'Timer started.',
             'active_log_id' => $log->id,
         ]);
     }
@@ -73,6 +74,7 @@ class TimeLogController extends BaseController
 
         return back()->with('success', 'Time entry deleted.');
     }
+
     public function approve(Request $request, Task $task, TimeLog $timeLog): RedirectResponse
     {
         $this->authorize('approve', $timeLog);

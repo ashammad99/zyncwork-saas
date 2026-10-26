@@ -14,12 +14,12 @@ class CreateActivityLogRecord
     public function handle(ActivityLogged $event): void
     {
         ActivityLog::create([
-            'user_id'      => $event->user->id,
-            'action'       => $event->action,
-            'description'  => $event->description,
+            'user_id' => $event->user->id,
+            'action' => $event->action,
+            'description' => $event->description,
             'subject_type' => $event->subjectType,
-            'ip_address'   => request()->ip(),
-            'user_agent'   => request()->userAgent(),
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
         ]);
     }
 }

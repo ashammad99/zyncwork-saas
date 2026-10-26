@@ -3,21 +3,21 @@
 namespace App\Features\Profile\Admin\Services;
 
 use App\Core\BaseService;
-
+use App\Features\ActivityLog\Events\ActivityLogged;
+use App\Features\Notification\Events\NotificationCreated;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
-use App\Features\Notification\Events\NotificationCreated;
-use App\Features\ActivityLog\Events\ActivityLogged;
 
 class ProfileService extends BaseService
 {
     public function updateProfile($user, array $data)
     {
-        if (isset($data['profile_image']) && $data['profile_image'] instanceof \Illuminate\Http\UploadedFile) {
+        if (isset($data['profile_image']) && $data['profile_image'] instanceof UploadedFile) {
             // Delete old image if exists
             if ($user->profile_image) {
                 $oldFilename = basename($user->profile_image);
-                Storage::disk('local')->delete('profile-image/' . $oldFilename);
+                Storage::disk('local')->delete('profile-image/'.$oldFilename);
             }
 
             $path = $data['profile_image']->store('profile-image', 'local');
